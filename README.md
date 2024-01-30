@@ -1,5 +1,110 @@
 # testvasundhara.github.io
 
+// Firebase Notification
+
+    implementation 'com.google.firebase:firebase-messaging:23.1.1'
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+     <service
+            android:name=".MyFirebaseMessagingService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+      
+      val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+      } else PendingIntent.FLAG_UPDATE_CURRENT
+        
+      class MyFirebaseMessagingService : FirebaseMessagingService() {
+          var fcm_vaule = ""
+          override fun onNewToken(token: String) {
+              super.onNewToken(token)
+              ("onNewToken: ====>$token").log()
+          }
+      
+          override fun onMessageReceived(remoteMessage: RemoteMessage) {
+              ("on Message Recive From Firebase").log()
+              if (remoteMessage.data.isNotEmpty()) {
+                  val data = remoteMessage.data
+                  data.forEach {
+                      val key: String = it.key
+                      fcm_vaule = it.value
+                      CAT_VAULE = it.value
+                      ("Firebase FCM: Key: $key Value: $fcm_vaule").log()
+                  }
+              }
+      
+              // Handle notification payload if present
+              if (remoteMessage.notification != null) {
+                  // Handle notification message
+                  val notificationTitle = remoteMessage.notification!!.title
+                  val notificationBody = remoteMessage.notification!!.body
+                  // Process notification message
+                  ("Title: $notificationTitle Body: $notificationBody").log()
+              }
+      
+              remoteMessage.notification?.let {
+                  sendNotification(it.title, it.body, remoteMessage)
+              }
+          }
+      
+          private fun sendNotification(
+              title: String?, messageBody: String?, remoteMessage: RemoteMessage
+          ) {
+              val intent = Intent(this, SearchDataActivity::class.java).putExtra("keyword", fcm_vaule)
+                  .putExtra("isFromNotify", true)
+      
+              intent.flags =
+                  Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+              intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NO_HISTORY)
+              intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+      
+              val pendingIntent = PendingIntent.getActivity(
+                  this, 0, intent, flags
+              )
+      
+              val channelId = "default_channel_id"
+              val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+              val notificationBuilder =
+                  NotificationCompat.Builder(this, channelId).setSmallIcon(R.mipmap.ic_launcher)
+                      .setContentTitle(title).setContentText(messageBody).setAutoCancel(true).setVibrate(
+                          longArrayOf(
+                              1000, 1000, 1000, 1000, 1000
+                          )
+                      ).setSound(defaultSoundUri).setOnlyAlertOnce(true).setContentIntent(pendingIntent)
+      
+              val notificationManager =
+                  getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                  val channel = NotificationChannel(
+                      channelId, "Important Notification", NotificationManager.IMPORTANCE_HIGH
+                  )
+                  channel.vibrationPattern = longArrayOf(1000, 1000, 1000, 1000, 1000)
+                  notificationManager.createNotificationChannel(channel)
+              }
+              notificationManager.notify(0, notificationBuilder.build())
+          }
+      }
+
+    in App Background.
+    SplaceAct
+     if (intent.extras != null) {
+            ("22222").log()
+            for (firebase_key in intent.extras!!.keySet()) {
+                ("33333").log()
+                firebase_value = intent.extras!![firebase_key].toString()
+                Log.d("FATZ", "----- Fuirebase --------- Key: $firebase_key Value: $firebase_value")
+                if (firebase_key!! == "FIREBASE_KEY") {
+                    isOpenSearchAct = true
+                    break
+                }
+            }
+        }
 
 // Safty Net
 
