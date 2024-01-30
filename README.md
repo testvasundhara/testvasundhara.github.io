@@ -3,6 +3,18 @@
 
 // InApp Update
 
+     Lib
+            configurations {
+           all {
+               resolutionStrategy {
+                   // Exclude specific modules causing conflicts
+                   exclude group: 'com.google.android.play', module: 'core'
+               }
+           }
+       }
+
+    implementation 'com.google.android.play:app-update:2.1.0'
+
        class InAppUpdate(activity: Activity) : InstallStateUpdatedListener {
        
            private var appUpdateManager: AppUpdateManager
