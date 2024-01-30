@@ -1,6 +1,529 @@
 # testvasundhara.github.io
 
 
+// Safty Net
+
+      // play intigrity
+          coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+         implementation("com.google.apis:google-api-services-playintegrity:v1-rev20220211-1.32.1")
+         implementation("com.google.apis:google-api-services-playintegrity:v1-rev20231109-2.0.0")
+         //  Google Authentication
+         implementation("com.google.api-client:google-api-client-jackson2:1.20.0")
+         implementation("com.google.auth:google-auth-library-credentials:1.20.0")
+         implementation 'com.google.auth:google-auth-library-credentials:1.20.0'
+         implementation("com.google.auth:google-auth-library-oauth2-http:1.20.0")
+         implementation("com.google.android.play:integrity:1.3.0")
+         implementation 'com.scottyab:rootbeer-lib:0.1.0'
+
+         in asset -> addJson File 
+         in Build.gradl File ->     
+         buildConfigField("String", "CLOUD_PROJECT_NUM", "100200")
+
+       buildTypes {
+             release {
+                 minifyEnabled true
+                 shrinkResources true
+     //            signingConfig signingConfigs.release
+                 proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                 firebaseCrashlytics {
+                     nativeSymbolUploadEnabled true
+                 }
+                 signingConfig signingConfigs.debug
+                 buildConfigField("String", "CLOUD_PROJECT_NUM", "\"00000\"")
+     //            signingConfig signingConfigs.debug
+                 ndk {
+                     abiFilters 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+                 }
+             }
+     
+             debug {
+                 buildConfigField("String", "CLOUD_PROJECT_NUM", "\"00000\"")
+                 minifyEnabled false
+                 shrinkResources false
+                 proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                 firebaseCrashlytics {
+                     nativeSymbolUploadEnabled false
+                 }
+                 ndk {
+                     abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86'
+                 }
+     //            ndk {
+     //                abiFilters 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+     //            }
+             }
+         }
+
+               packagingOptions {
+             exclude("META-INF/DEPENDENCIES")
+             exclude("META-INF/LICENSE")
+             exclude("META-INF/LICENSE.txt")
+             exclude("META-INF/license.txt")
+             exclude("META-INF/NOTICE")
+             exclude("META-INF/NOTICE.txt")
+             exclude("META-INF/notice.txt")
+             exclude("META-INF/ASL2.0")
+             exclude("META-INF/*.kotlin_module")
+         }
+
+      // PlaySafety.kt class
+      
+                class PlaySafety(
+              var activity: Activity, var cloudProjectNumber: Long, private var onNext: () -> Unit
+          ) {
+              private var interpin: StandardIntegrityManager.StandardIntegrityToken? = null
+          
+              fun cxroot() {
+                  val rootBeer = RootBeer(activity)
+                  if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
+                      PlayInitDialog(activity)
+                  } else {
+                      onNext.invoke()
+                  }
+              }
+          
+              fun sft() {
+                  val standardIntegrityManager: StandardIntegrityManager =
+                      IntegrityManagerFactory.createStandard(activity);
+                  var integrityTokenProvider: StandardIntegrityManager.StandardIntegrityTokenProvider;
+                  val cloudProjectNumber = cloudProjectNumber
+          
+                  // Prepare integrity token. Can be called once in a while to keep internal
+                  // state fresh.
+          
+                  standardIntegrityManager.prepareIntegrityToken(
+                      StandardIntegrityManager.PrepareIntegrityTokenRequest.builder()
+                          .setCloudProjectNumber(cloudProjectNumber).build()
+                  ).addOnSuccessListener {
+                      integrityTokenProvider = it
+                      val integrityTokenResponse: Task<StandardIntegrityManager.StandardIntegrityToken>? =
+                          integrityTokenProvider.request(
+                              StandardIntegrityManager.StandardIntegrityTokenRequest.builder()
+                                  .setRequestHash(generateNonce()).build()
+                          )
+                      integrityTokenResponse!!.addOnSuccessListener { response ->
+                          interpin = response
+                          decryptToken(response.token())
+                          "check token addOnSuccessListener:${response.token()}".log()
+                      }.addOnFailureListener { exception ->
+                          "check token addOnFailureListener:${exception.message}".log()
+                      }
+                  }.addOnFailureListener(
+                      activity
+                  ) { p0 ->
+                      "check token addOnFailureListener:1:${p0.message}".log()
+          
+                      val rootBeer = RootBeer(activity)
+                      if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
+                          CoroutineScope(Dispatchers.Main).launch {
+                              PlayInitDialog(activity)
+                          }
+                      } else {
+                          activity.runOnUiThread {
+                              onNext.invoke()
+                          }
+                      }
+                      "check token addOnFailureListener:2:${p0.message}".log()
+                  }
+              }
+          
+              private fun decryptToken(token: String) {
+                  try {
+                      "check the response is the:decryptToken:$token".log()
+                      val requestObj = DecodeIntegrityTokenRequest()
+                      requestObj.integrityToken = token
+                      val credentials = GoogleCredentials.fromStream(activity.assets.open("credentials.json"))
+                      val requestInitializer: HttpRequestInitializer = HttpCredentialsAdapter(credentials)
+                      val initialiser: GoogleClientRequestInitializer = PlayIntegrityRequestInitializer()
+                      val playIntegrity =
+                          PlayIntegrity.Builder(NetHttpTransport(), JacksonFactory(), requestInitializer)
+                              .setApplicationName(
+                                  activity.resources.getString(
+                                      R.string.app_name
+                                  )
+                              ).setGoogleClientRequestInitializer(initialiser)
+                      val play = playIntegrity.build()
+          
+                      CoroutineScope(Dispatchers.IO).launch {
+                          "check the package name:${activity.packageName}".log()
+                          try {
+                              val response =
+                                  play.v1().decodeIntegrityToken(activity.packageName, requestObj).execute()
+                              val rootBeer = RootBeer(activity)
+                              if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
+                                  CoroutineScope(Dispatchers.Main).launch {
+                                      playdialog(1)
+                                  }
+                              } else {
+                                  isRecognized(response)
+                              }
+                              "check the response is the:123:response ${isRecognized(response)} and $response".log()
+          //                "check the response is the:123:response ${response["tokenPayloadExternal"]}".log()
+                          } catch (e: Exception) {
+                              "check the response is the:123:catch".log()
+                              val rootBeer = RootBeer(activity)
+                              if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
+                                  CoroutineScope(Dispatchers.Main).launch {
+                                      "check the response is the:123:catch:root device".log()
+                                      playdialog(1)
+                                  }
+                              } else {
+                                  "check the response is the:123:catch:not root device".log()
+                                  activity.runOnUiThread {
+                                      onNext.invoke()
+                                  }
+                              }
+                          }
+                      }
+                  } catch (e: Exception) {
+                      activity.runOnUiThread {
+                          onNext.invoke()
+                      }
+                  }
+              }
+          
+              @SuppressLint("SuspiciousIndentation")
+              fun isRecognized(payload: DecodeIntegrityTokenResponse) {
+                  val appLicensingVerdict = payload.tokenPayloadExternal.accountDetails.appLicensingVerdict
+          
+                  val appRecognitionVerdict = payload.tokenPayloadExternal.appIntegrity.appRecognitionVerdict
+          
+                  val deviceRecognitionVerdict =
+                      payload.tokenPayloadExternal.deviceIntegrity.deviceRecognitionVerdict
+          
+          //        val isSafeLast = payload.tokenPayloadExternal.accountDetails.appLicensingVerdict.isNotEmpty() && (appLicensingVerdict == "LICENSED") && (appRecognitionVerdict == "PLAY_RECOGNIZED") && (deviceRecognitionVerdict[0] == "MEETS_DEVICE_INTEGRITY")
+                  val isSafeLast =
+                      payload.tokenPayloadExternal.accountDetails.appLicensingVerdict.isNotEmpty() && appLicensingVerdict.contains(
+                          "LICENSED"
+                      ) && appRecognitionVerdict.contains("PLAY_RECOGNIZED") && deviceRecognitionVerdict.contains(
+                          "MEETS_DEVICE_INTEGRITY"
+                      )
+                  ("check the device is the device:${appLicensingVerdict.contains("LICENSED")} " + "and ${
+                      appRecognitionVerdict.contains(
+                          "PLAY_RECOGNIZED"
+                      )
+                  } and " + "${deviceRecognitionVerdict.contains("MEETS_DEVICE_INTEGRITY")} and" + " ${payload.tokenPayloadExternal.accountDetails.appLicensingVerdict.isNotEmpty()}").log()
+          
+                  "check the device is the device:isSafeLast:$isSafeLast".log()
+          
+                  if (isSafeLast) {
+                      "check the device is the device:isSafeLast:$isSafeLast".log()
+                      activity.runOnUiThread {
+                          onNext.invoke()
+                      }
+                  } else {
+                      "check the device is the device:else".log()
+                      activity.runOnUiThread {
+                          playdialog(1)
+                      }
+                  }
+              }
+          
+              private fun playdialog(showDialogType: Int) {
+                  val integrityDialogResponseCode: Task<Int> = interpin!!.showDialog(activity, showDialogType)
+                  integrityDialogResponseCode.addOnSuccessListener {
+                      "playdialog: Success----> $it".log()
+                      if (it == 2) {
+                          activity.finishAffinity()
+                      } else if (it == 3) {
+                          try {
+                              activity.startActivity(
+                                  Intent(
+                                      Intent.ACTION_VIEW,
+                                      Uri.parse("market://details?id=${activity.packageName}")
+                                  )
+                              )
+                              activity.finishAffinity()
+                          } catch (e: ActivityNotFoundException) {
+                              activity.startActivity(
+                                  Intent(
+                                      Intent.ACTION_VIEW,
+                                      Uri.parse("https://play.google.com/store/apps/details?id=${activity.packageName}")
+                                  )
+                              )
+                              activity.finishAffinity()
+                          }
+                      }
+                  }.addOnFailureListener {
+                      "playdialog: Failure----> $it".log()
+                  }
+              }
+          
+              private fun generateNonce(): String {
+                  val length = 50
+                  var nonce = ""
+                  val allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+                  for (i in 0 until length) {
+                      nonce += allowed[Math.floor(Math.random() * allowed.length).toInt()].toString()
+                  }
+                  return nonce
+              }
+          }
+          
+          
+          //todo: Need to Add Below Lib
+          //implementation("com.google.apis:google-api-services-playintegrity:v1-rev20220211-1.32.1")
+          //    implementation("com.google.apis:google-api-services-playintegrity:v1-rev20231109-2.0.0")
+          //    //  Google Authentication
+          //    implementation("com.google.api-client:google-api-client-jackson2:1.20.0")
+          ////    implementation ("com.google.auth:google-auth-library-credentials:1.20.0")
+          //    implementation 'com.google.auth:google-auth-library-credentials:1.20.0'
+          //    implementation("com.google.auth:google-auth-library-oauth2-http:1.20.0")
+          //implementation("com.google.android.play:integrity:1.3.0")
+          //
+          //configurations {
+          //    all {
+          //        resolutionStrategy {
+          //            // Exclude specific modules causing conflicts
+          //            exclude group: 'com.google.android.play', module: 'core'
+          //        }
+          //    }
+          //}
+          //implementation 'com.google.android.play:app-update:2.1.0'
+          
+          //-keep class com.google.api.services.playintegrity.** { *; } #REQUIRED
+          //-keep class com.google.api.client.** { *; } #REQUIRED
+          
+          
+          //  PlaySafetyNetByFenil(this, 787207734962) {
+          //            //(Your Next Code)
+          //        }.sft()
+          
+          
+          // Asset-> add json credentials.json
+
+     PlayInitDialog.kt
+     
+     class PlayInitDialog {
+         constructor(activity: Activity) {
+     
+     //        init {
+             var dialog: Dialog = Dialog(activity)
+             var bind: PlayinitLayoutBinding = PlayinitLayoutBinding.inflate(activity.layoutInflater)
+             dialog.setContentView(bind.root)
+             dialog.window!!.setBackgroundDrawableResource(android.R.color.transparent)
+             dialog.setCancelable(false)
+             dialog.show()
+     
+             bind.apply {
+                 btnExit.click {
+                     activity.finishAffinity()
+                 }
+                 btnInstallNow.click {
+                     try {
+                         activity.startActivity(
+                             Intent(
+                                 Intent.ACTION_VIEW,
+                                 Uri.parse("market://details?id=${activity.packageName}")
+                             )
+                         )
+                     } catch (e: ActivityNotFoundException) {
+                         activity.startActivity(
+                             Intent(
+                                 Intent.ACTION_VIEW,
+                                 Uri.parse("https://play.google.com/store/apps/details?id=${activity.packageName}")
+                             )
+                         )
+                     }
+     //                }
+                 }
+             }
+         }
+     }
+
+     playinit_layout.xml
+
+          <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+         xmlns:cardview="http://schemas.android.com/apk/res-auto"
+         android:layout_width="match_parent"
+         android:layout_height="wrap_content"
+         android:layout_gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end"
+         android:layout_marginLeft="10dp"
+         android:layout_marginRight="10dp"
+         android:elevation="5dp"
+         android:gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end"
+         android:layoutDirection="ltr"
+         android:orientation="vertical"
+         cardview:cardCornerRadius="20dp"
+         cardview:cardElevation="5dp"
+         cardview:cardUseCompatPadding="true">
+     
+         <LinearLayout
+             android:layout_width="match_parent"
+             android:layout_height="wrap_content"
+             android:background="@color/white"
+             android:orientation="vertical">
+     
+             <LinearLayout
+                 android:layout_width="match_parent"
+                 android:layout_height="wrap_content"
+                 android:layout_gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end"
+                 android:gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end"
+                 android:orientation="vertical">
+     
+                 <TextView
+                     android:id="@+id/dialogTitle"
+                     android:layout_width="match_parent"
+                     android:layout_height="wrap_content"
+                     android:layout_marginTop="10dp"
+                     android:layout_marginBottom="10dp"
+                     android:fontFamily="@font/poppins"
+                     android:gravity="center"
+                     android:text="Alert"
+                     android:textColor="#FF0000"
+                     android:textSize="25sp" />
+     
+                 <TextView
+                     android:id="@+id/dialogMessage"
+                     android:layout_width="match_parent"
+                     android:layout_height="wrap_content"
+                     android:layout_marginHorizontal="10dp"
+                     android:layout_marginBottom="10dp"
+                     android:fontFamily="@font/poppins"
+                     android:gravity="center|left"
+                     android:justificationMode="inter_word"
+                     android:text="This app is not licensed or legally available on the Play Store. We kindly ask you to uninstall the current app. Please search for on the Play Store and install the official app to ensure a legal and authorized experience."
+                     android:textColor="@color/black"
+                     android:textSize="15sp" />
+     
+                 <LinearLayout
+                     android:layout_width="match_parent"
+                     android:layout_height="wrap_content"
+                     android:layout_marginStart="15dp"
+                     android:layout_marginTop="5dp"
+                     android:layout_marginEnd="15dp"
+                     android:layout_marginBottom="15dp"
+                     android:orientation="horizontal">
+     
+                     <TextView
+                         android:id="@+id/btnExit"
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+                         android:layout_marginLeft="10dp"
+                         android:layout_marginRight="10dp"
+                         android:layout_weight="1"
+                         android:background="@drawable/edround"
+                         android:backgroundTint="#FF0000"
+                         android:fontFamily="@font/poppins"
+                         android:gravity="center"
+                         android:padding="7dp"
+                         android:text="Exit"
+                         android:textAllCaps="true"
+                         android:textColor="@color/white"
+                         android:textSize="13sp"
+                         android:textStyle="bold" />
+     
+                     <TextView
+                         android:id="@+id/btnInstallNow"
+                         android:layout_width="match_parent"
+                         android:layout_height="wrap_content"
+                         android:layout_marginLeft="10dp"
+                         android:layout_marginRight="10dp"
+                         android:layout_weight="1"
+                         android:background="@drawable/edround"
+                         android:backgroundTint="#F44336"
+                         android:ellipsize="end"
+                         android:fontFamily="@font/poppins"
+                         android:gravity="center"
+                         android:padding="7dp"
+                         android:singleLine="true"
+                         android:text="Install Now"
+                         android:textAllCaps="true"
+                         android:textColor="@color/white"
+                         android:textSize="13sp"
+                         android:textStyle="bold" />
+     
+                 </LinearLayout>
+     
+             </LinearLayout>
+     
+         </LinearLayout>
+     
+     </androidx.cardview.widget.CardView>
+
+    // Now in SplaceScreen
+
+      if (NetworkHelper.isOnline(this)) {
+                        PlaySafety(this, BuildConfig.CLOUD_PROJECT_NUM.toLong()) {
+                            if (isOpenSearchAct) {
+                                openActivity(SearchDataActivity::class.java) {
+                                    putString("keyword", firebase_value)
+                                    putBoolean("isFromNotify", true)
+                                }
+                                finish()
+                            } else {
+                                //            openActivity(MainActivity::class.java)
+                                if (isSubScribe) openActivity(MainActivity::class.java)
+                                else openSubscription()
+                            }
+                            overridePendingTransition(0, 0)
+                        }.sft()
+                    } else {
+                        PlaySafety(this, BuildConfig.CLOUD_PROJECT_NUM.toLong()) {
+
+                            if (isOpenSearchAct) {
+                                openActivity(SearchDataActivity::class.java) {
+                                    putString("keyword", firebase_value)
+                                    putBoolean("isFromNotify", true)
+                                }
+                                finish()
+                            } else {
+                                //            openActivity(MainActivity::class.java)
+                                if (isSubScribe) openActivity(MainActivity::class.java)
+                                else openSubscription()
+                            }
+                            overridePendingTransition(0, 0)
+                        }.cxroot()
+                    }
+                    
+// WrapHeightViewPager
+
+     public class WrapHeightViewPager extends ViewPager {
+         public WrapHeightViewPager(Context context) {
+             super(context);
+         }
+     
+         public WrapHeightViewPager(Context context, AttributeSet attrs) {
+             super(context, attrs);
+         }
+     
+         @Override
+         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+             int height = 0;
+             View view = null;
+             for (int i = 0; i < getChildCount(); i++) {
+                 view = getChildAt(i);
+                 view.measure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                 int h = view.getMeasuredHeight();
+                 if (h > height) height = h;
+             }
+     
+             if (height != 0) {
+                 heightMeasureSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
+             }
+             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+             setMeasuredDimension(getMeasuredWidth(), measureHeight(heightMeasureSpec, view));
+         }
+     
+         private int measureHeight(int measureSpec, View view) {
+             int result = 0;
+             int specMode = MeasureSpec.getMode(measureSpec);
+             int specSize = MeasureSpec.getSize(measureSpec);
+     
+             if (specMode == MeasureSpec.EXACTLY) {
+                 result = specSize;
+             } else {
+                 // set the height from the base view if available
+                 if (view != null) {
+                     result = view.getMeasuredHeight();
+                 }
+                 if (specMode == MeasureSpec.AT_MOST) {
+                     result = Math.min(result, specSize);
+                 }
+             }
+             return result;
+         }
+     }
+
 // InApp Update
 
      Lib
