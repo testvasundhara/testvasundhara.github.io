@@ -1,5 +1,22 @@
 # testvasundhara.github.io
 
+// Firebase Event Debug
+
+    adb shell setprop debug.firebase.analytics.app package_name
+    adb shell setprop debug.firebase.analytics.app       
+    usage: setprop NAME VALUE
+
+// Test AD ID ADX
+    
+    Sample ad unit ID	
+    App Open	/6499/example/app-open
+    Banner	/6499/example/banner
+    Interstitial	/6499/example/interstitial
+    Rewarded	/6499/example/rewarded
+    Rewarded Interstitial	/21775744923/example/rewarded_interstitial
+    Native	/6499/example/native
+    Native Video	/6499/example/native-video
+
 // Simple Important lib
 
     implementation 'com.github.SimpleMobileTools:Simple-Commons:c31d0fda56'
