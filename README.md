@@ -1,5 +1,9 @@
 # testvasundhara.github.io
 
+// Simple Important lib
+
+    implementation 'com.github.SimpleMobileTools:Simple-Commons:c31d0fda56'
+
 // Firebase Notification
 
     implementation 'com.google.firebase:firebase-messaging:23.1.1'
