@@ -18,13 +18,35 @@
                 enableSplit = false
             }
         }
-        
+
+            list.add(LanguageModel("Arabic", false, "Ar", "عربي", "#CEE3F7"))
+        list.add(LanguageModel("English", false, "en", "English", "#DBF1DB"))
+        list.add(LanguageModel("French", false, "fr", "Français", "#CFF6E6"))
+        list.add(LanguageModel("German", false, "de", "Deutsch", "#F7DBD2"))
+        list.add(LanguageModel("Japanese", false, "ja", "日本語", "#FDF2D2"))
+        list.add(LanguageModel("Korean", false, "ko", "한국인", "#D7F0F4"))
+        list.add(LanguageModel("Portuguese", false, "pt", "Português", "#E4DBDB"))
+        list.add(LanguageModel("Swedish", false, "sv", "svenska", "#E8D2FD"))
+        list.add(LanguageModel("Hindi", false, "hi", "हिन्दी", "#F7DBD2"))
+
+         // for Arabic in menifest file
+
+           tools:replace="android:supportsRtl"
+           android:supportsRtl="false"
+
+         
 
 // Firebase Event Debug
 
     adb shell setprop debug.firebase.analytics.app package_name
     adb shell setprop debug.firebase.analytics.app       
     usage: setprop NAME VALUE
+
+
+         val bundle = Bundle()
+        bundle.putString("Kriadl_${javaClass.simpleName}", "Kriadl_${javaClass.simpleName}")
+        val mFirebaseAnalytics = FirebaseAnalytics.getInstance(this)
+        mFirebaseAnalytics.logEvent("Kriadl_${javaClass.simpleName}", bundle)
 
 // Test AD ID ADX
     
