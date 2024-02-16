@@ -1,5 +1,25 @@
 # testvasundhara.github.io
 
+// When Change the Language in beta
+
+    fun setAppLocale(activity: Activity, languageCode: String) {
+        App.putString(LANGUAGE_KEY, languageCode)
+        val locale = Locale(languageCode)
+        Locale.setDefault(locale)
+        val configuration = Configuration()
+        configuration.setLocale(locale)
+        activity.resources.updateConfiguration(configuration, activity.resources.displayMetrics)
+    }
+
+    build.gradl file
+
+     bundle {
+            language {
+                enableSplit = false
+            }
+        }
+        
+
 // Firebase Event Debug
 
     adb shell setprop debug.firebase.analytics.app package_name
