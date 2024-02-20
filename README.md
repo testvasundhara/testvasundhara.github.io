@@ -1,5 +1,45 @@
 # testvasundhara.github.io
 
+// Facebook Shimmer layout
+
+      implementation 'com.facebook.shimmer:shimmer:0.5.0'
+
+          <com.facebook.shimmer.ShimmerFrameLayout
+                                android:layout_width="@dimen/_120sdp"
+                                android:layout_height="@dimen/_30sdp"
+                                app:shimmer_auto_start="true"
+                                app:shimmer_duration="2000"
+                                app:shimmer_fixed_width="@dimen/_100sdp"
+                                app:shimmer_highlight_color="@color/white">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:background="@drawable/shimmer_layout">
+
+                                </LinearLayout>
+
+                            </com.facebook.shimmer.ShimmerFrameLayout>
+
+                           // shimmer_layout.xml
+                           
+                                    <shape
+            android:shape="rectangle" xmlns:android="http://schemas.android.com/apk/res/android">
+        
+            <solid
+                android:color="#61FFFFFF">
+        
+            </solid>
+        
+            <corners
+                android:radius="@dimen/_12sdp">
+        
+            </corners>
+        
+        </shape>
+
+
+
 // When Change the Language in beta
 
     fun setAppLocale(activity: Activity, languageCode: String) {
