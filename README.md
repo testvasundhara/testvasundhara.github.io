@@ -1,5 +1,11 @@
 # testvasundhara.github.io
 
+// Custom native Ad
+
+      https://github.com/DevHamza090/Admob-AppLovin/tree/master/app/src/main/res/layout
+             https://github.com/googleads/googleads-mobile-android-native-templates/tree/main/nativetemplates/src/main/res/layout
+
+
 // Facebook Shimmer layout
 
       implementation 'com.facebook.shimmer:shimmer:0.5.0'
