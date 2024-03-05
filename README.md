@@ -1,5 +1,22 @@
 # testvasundhara.github.io
 
+// Custom Tab for privacy policy
+
+    implementation 'com.android.support:customtabs:28.0.0'
+
+         val privacyPolicyUrl =
+                          "https://imagecropnwallpaperchanger.blogspot.com/2023/07/privacy-policy.html"
+                      val builder = CustomTabsIntent.Builder()
+                      builder.setToolbarColor(
+                          ContextCompat.getColor(
+                              this@MainActivity,
+                              android.R.color.black
+                          )
+                      )
+                      val customTabsIntent = builder.build()
+                      customTabsIntent.launchUrl(this@MainActivity, Uri.parse(privacyPolicyUrl))
+                      
+
 // Custom native Ad
 
       https://github.com/DevHamza090/Admob-AppLovin/tree/master/app/src/main/res/layout
