@@ -1,6 +1,272 @@
 # testvasundhara.github.io
 
 
+
+// Load Reward Ad
+
+     
+     interface RewardAdsCallback {
+         fun onAdsDismissClick()
+         fun onFullShowAds()
+     }
+     
+     fun loadRewardAds(activity: Activity, onRewardCallBack: RewardAdsCallback) {
+         if (isSubScribe || !isShowRewardAds || !isNetworkConnected(activity)) onRewardCallBack.onAdsDismissClick()
+         else {
+             isRewardedShow = true
+             RewardAds(activity) {
+                 it.log()
+                 isRewardedShow = false
+                 when (it) {
+                     "onAdsFullShow" -> {
+                         onRewardCallBack.onFullShowAds()
+                     }
+     
+                     "onAddDismiss" -> {
+                         onRewardCallBack.onAdsDismissClick()
+                     }
+     
+                     "onAddFail" -> {
+                         onRewardCallBack.onAdsDismissClick()
+                     }
+                 }
+             }
+         }
+     }
+
+       // reward class
+
+          
+          const val COUNTER_TIME = 10L
+          
+          class RewardAds(
+              var activity: Activity, var onAdsClick: (String) -> Unit
+          ) {
+              private var isEarnReward: Boolean = false
+              private val AD_UNIT_ID = REWARD_ADS
+              var progressBar: RewardAdsDialog = RewardAdsDialog(activity)
+              var timeOver = false
+          
+              private var countdownTimer: CountDownTimer? = null
+              private var isLoading = false
+              private var rewardedAd: RewardedAd? = null
+              private var timeRemaining: Long = 0L
+          
+              init {
+                  if (isSubScribe) {
+                      onAdsClick("onAddDismiss")
+                  } else {
+                      if (!activity.isFinishing) {
+                          progressBar.show()
+                          createTimer(COUNTER_TIME)
+                          loadRewardedAd()
+                      }
+                  }
+              }
+          
+              private fun loadRewardedAd() {
+                  if (rewardedAd == null) {
+                      ("Reward Ads Loading ID: $AD_UNIT_ID").log()
+                      isLoading = true
+                      val adRequest = AdManagerAdRequest.Builder().build()
+          
+                      RewardedAd.load(activity, AD_UNIT_ID, adRequest, object : RewardedAdLoadCallback() {
+                          override fun onAdFailedToLoad(adError: LoadAdError) {
+                              ("Reward Error: " + adError.message + " |Time Over: $timeOver").log()
+                              isLoading = false
+                              rewardedAd = null
+                              timeOver = true
+                              countdownTimer!!.cancel()
+                              progressBar.onDismiss()
+                              isRewardedShow = false
+                              (activity.getString(R.string.please_try_again)).tos(activity)
+          
+          //                    timeOver = true
+          //                    if (progressBar.isShowingDialog()) {
+          //                        onAdsClick("onAddFail")
+          //                    }
+                          }
+          
+                          override fun onAdLoaded(ad: RewardedAd) {
+                              ("Ad was loaded.: $timeOver").log()
+                              rewardedAd = ad
+                              isLoading = false
+                              countdownTimer!!.cancel()
+                              if (!timeOver && !activity.isFinishing) {
+                                  showRewardedVideo()
+                              }
+                          }
+                      })
+                  }
+              }
+          
+              private fun createTimer(time: Long) {
+                  countdownTimer?.cancel()
+                  countdownTimer = object : CountDownTimer(time * 1000, 50) {
+                      override fun onTick(millisUnitFinished: Long) {
+                          timeRemaining = millisUnitFinished / 1000 + 1
+                      }
+          
+                      override fun onFinish() {
+                          ("Reward OnFinish ").log()
+                          if (!timeOver && !activity.isFinishing) {
+                              showRewardedVideo()
+                          }
+                      }
+                  }
+                  countdownTimer?.start()
+              }
+          
+              private fun showRewardedVideo() {
+                  progressBar.onDismiss()
+                  timeOver = true
+                  if (rewardedAd != null) {
+                      rewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+                          override fun onAdDismissedFullScreenContent() {
+                              ("Reward Ad was dismissed.").log()
+                              rewardedAd = null
+                              if (isEarnReward) onAdsClick("onAddDismiss")
+                              else {
+                                  isRewardedShow = false
+                                  (activity.getString(R.string.please_try_again)).tos(activity)
+                              }
+                          }
+          
+                          override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                              ("Ad failed to show.").log()
+                              rewardedAd = null
+                              onAdsClick("onAddFail")
+                          }
+          
+                          override fun onAdShowedFullScreenContent() {
+                              ("Ad showed fullscreen content.").log()
+                          }
+                      }
+          
+                      rewardedAd?.show(activity) {
+                          isEarnReward = true
+                          ("User earned the reward.").log()
+                      }
+                  } else {
+                      isRewardedShow = false
+                      (activity.getString(R.string.please_try_again)).tos(activity)
+          //            onAdsClick("onAddDismiss")
+                  }
+              }
+          }
+
+
+// Load Singal ID Intern Ad
+
+     const val GAME_LENGTH_MILLISECONDS: Long = 5000
+     
+     class InternAds(var activity: Activity, var AD_UNIT_ID: String, var onNext: () -> Unit) {
+         private var interstitialAd: AdManagerInterstitialAd? = null
+         private var countDownTimer: CountDownTimer? = null
+         private var gamePaused: Boolean = false
+         private var gameOver: Boolean = false
+         private var adIsLoading: Boolean = false
+         private var timerMilliseconds: Long = 0
+         var progressBar: RewardAdsDialog = RewardAdsDialog(activity)
+     
+         init {
+             loadAd()
+             startGame()
+         }
+     
+         private fun startGame() {
+             createTimer(GAME_LENGTH_MILLISECONDS)
+             gamePaused = false
+             gameOver = false
+         }
+     
+         private fun createTimer(milliseconds: Long) {
+             countDownTimer?.cancel()
+             countDownTimer = object : CountDownTimer(milliseconds, 50) {
+                 override fun onTick(millisUntilFinished: Long) {
+                     timerMilliseconds = millisUntilFinished
+                 }
+     
+                 override fun onFinish() {
+                     if (!activity.isFinishing) {
+                         gameOver = true
+                         progressBar.onDismiss()
+                         showInterstitial()
+                     }
+                 }
+             }
+             if (!activity.isFinishing) {
+                 progressBar.show()
+                 countDownTimer?.start()
+             }
+         }
+     
+         private fun showInterstitial() {
+             // Show the ad if it's ready. Otherwise restart the game.
+             if (interstitialAd != null) {
+                 interstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+                     override fun onAdDismissedFullScreenContent() {
+                         interstitialAd = null
+                         ("Ad was dismissed.").log()
+                         isRewardedShow = false
+                         onNext()
+                     }
+     
+                     override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                         interstitialAd = null
+                         ("Ad failed to show.").log()
+                         isRewardedShow = false
+                         onNext()
+                     }
+     
+                     override fun onAdShowedFullScreenContent() {
+                         ("Ad showed fullscreen content.").log()
+                     }
+                 }
+     //            if (activity is TrailActivity) activity.onBackPressed()
+                 interstitialAd?.show(activity)
+             } else {
+                 onNext()
+     //            loadAd()
+             }
+         }
+     
+         private fun loadAd() {
+             // Request a new ad if one isn't already loaded.
+             if (adIsLoading || interstitialAd != null) {
+                 return
+             }
+             adIsLoading = true
+             val adRequest = AdManagerAdRequest.Builder().build()
+     
+             AdManagerInterstitialAd.load(
+                 activity,
+                 AD_UNIT_ID,
+                 adRequest,
+                 object : AdManagerInterstitialAdLoadCallback() {
+                     override fun onAdFailedToLoad(adError: LoadAdError) {
+                         (adError.message).log()
+                         interstitialAd = null
+                         adIsLoading = false
+                         val error =
+                             "domain: ${adError.domain}, code: ${adError.code}, " + "message: ${adError.message}"
+                         error.log()
+     //                    Toast.makeText(
+     //                        activity, "onAdFailedToLoad() with error $error", Toast.LENGTH_SHORT
+     //                    ).show()
+                     }
+     
+                     override fun onAdLoaded(interstitialAd: AdManagerInterstitialAd) {
+                         ("Intern Ad was loaded ID: $AD_UNIT_ID").log()
+                         this@InternAds.interstitialAd = interstitialAd
+                         adIsLoading = false
+     //                    Toast.makeText(activity, "onAdLoaded()", Toast.LENGTH_SHORT).show()
+                     }
+                 })
+         }
+     }
+
+
 // hide status bar and set color
 
      fun hideBottomNavigationBar() {
