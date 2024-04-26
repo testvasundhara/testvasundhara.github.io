@@ -1,6 +1,34 @@
 # testvasundhara.github.io
 
+// TextView Horizently AutoScroll TextView SCroll View
 
+       bind.lifetimetitalid.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+                             bind.lifetimetitalid.setSingleLine(true);
+                             bind.lifetimetitalid.setMarqueeRepeatLimit(-1); // -1 for infinite loop
+                             bind.lifetimetitalid.setSelected(true); // Required for the marquee effect to work
+     
+
+                    <TextView
+                        android:id="@+id/lifetimetitalid"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="start"
+                        android:layout_marginTop="@dimen/_8sdp"
+                        android:fontFamily="@font/poppinsmedium"
+                        android:gravity="start"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:ellipsize="marquee"
+                        android:layout_marginHorizontal="@dimen/_10sdp"
+                        android:scrollHorizontally="true"
+                        android:text="Purchase once, delight indefinitely"
+                        android:textColor="#1C1818"
+                        android:textSize="@dimen/_12sdp"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toStartOf="@+id/view"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_goneMarginStart="@dimen/_10sdp" />
 
 // Load Reward Ad
 
