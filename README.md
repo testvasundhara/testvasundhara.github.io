@@ -1,5 +1,849 @@
 # testvasundhara.github.io
 
+
+// Subscription & Revanue Cat class
+
+    implementation 'com.revenuecat.purchases:purchases:7.0.0'
+    implementation "com.android.billingclient:billing-ktx:6.1.0"
+
+      
+       @Keep
+       data class BillingProduct(
+           var id : String = "",
+           var title : String = "",
+           var description : String = "",
+           var packageType : MyPackageType? = null,
+           var price : String = "",
+           var amountmicros : Long = 0L,
+           var period : String = "",
+           var productType : String = BillingClient.ProductType.SUBS,
+       )
+       @Keep
+       data class BillingINAPPProduct(
+           var id : String = "",
+           var title : String = "",
+           var description : String = "",
+           var packageType : MyPackageType? = null,
+           var price : String = "",
+           var amountmicros : Long = 0L,
+           var period : String = "",
+           var productType : String = BillingClient.ProductType.SUBS,
+       )
+       
+       @Keep
+       data class ProductBillingIDS(var id : String, var billingType : String)
+       
+              
+       @Keep
+       data class RevenueCatData(
+           var id : String,
+           var packageName:String,
+           var packageType : PackageType,
+           var price : String,
+           var amountmicros : Long,
+           var period : String,
+           var freeTrial : FreeTrils,
+           var product : Package
+       )
+       
+       @Keep
+       data class FreeTrils(var period : Int? = null, var TimeType : String, var i8 : String)
+       @Keep
+       data class MyOffer(var key : String="", var packages : List<Package> = listOf())
+
+
+
+            ----  BillingHelper.class
+
+              
+              object BillingHelper {
+                  private lateinit var billingClient: BillingClient
+                  lateinit var productIds: List<ProductBillingIDS>
+                  var myInAppProducts = ArrayList<BillingINAPPProduct>()
+              
+                  var myProducts = ArrayList<BillingProduct>()
+                  var liveMyProducts = MutableLiveData<List<BillingProduct>>()
+                  private var isConsumable: Boolean = false
+                  var mySubProducts = ArrayList<BillingProduct>()
+              
+                  fun getBillingInit(
+                      billContextAct: Activity,
+                      billingKeys: List<ProductBillingIDS>,
+                      productPurchaseListener: ProductPurchaseListener
+                  ) {
+                      StaticParam.productPurchaseListener = productPurchaseListener
+                      productIds = billingKeys
+                      billContext = billContextAct
+                      getBillingHelp()
+                  }
+              
+                  //    var productIds = Arrays.asList("body_editor_monthly", "body_editor_yearly")
+              
+                  fun getBillingHelp() {
+                      val purchasesUpdatedListener = PurchasesUpdatedListener { billingResult, purchases ->
+                          "Client Purchase Response : ${billingResult.responseCode}".bilLog()
+                      }
+                      billingClient = BillingClient.newBuilder(billContext).setListener(purchasesUpdatedListener)
+                          .enablePendingPurchases().setListener { billingResult, purchases ->
+                              when (billingResult.responseCode) {
+                                  BillingClient.BillingResponseCode.OK -> purchases?.forEach {
+                                      handlePurchase(it)
+                                  }
+              
+                                  BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
+                                      ("Item Already Owned").log()
+                                  }
+              
+                                  else -> {
+                                      when (billingResult.responseCode) {
+                                          BillingClient.BillingResponseCode.USER_CANCELED -> {
+                                              toastMaker(
+                                                  billContext, "You've cancelled the Google play billing process"
+                                              )
+                                              productPurchaseListener?.onPurchaseFail("You've cancelled the Google play billing process")
+                                          }
+                                      }
+                                      if (billingResult.responseCode !in arrayOf(
+                                              BillingClient.BillingResponseCode.USER_CANCELED,
+                                              BillingClient.BillingResponseCode.OK
+                                          )
+                                      ) {
+                                          toastMaker(
+                                              billContext, "Item not found or Google play billing error"
+                                          )
+                                          productPurchaseListener?.onPurchaseFail("Item not found or Google play billing error")
+                                      }
+                                  }
+                              }
+                          }.build()
+              
+                      billingClient.startConnection(object : BillingClientStateListener {
+                          override fun onBillingSetupFinished(billingResult: BillingResult) {
+                              "Client Setup Response : ${billingResult.responseCode == BillingClient.BillingResponseCode.OK}".bilLog()
+                              ("Connection ").log("FATZ")
+                              billingClient.queryPurchasesAsync(
+                                  QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS)
+                                      .build()
+                              ) { _, purchases ->
+                                  purchases.size.toString().log()
+                                  if (purchases.size > 0) {
+                                      ("Item Purchase").log("FATZ")
+                                      isSubscribedForAllGlobal(billContext, true)
+                                      StaticParam.purchaseListener.postValue(true)
+                                  } else {
+                                      ("Item Not Purchase | Res Code: ${billingResult.responseCode}").log("FATZ")
+                                      isSubscribedForAllGlobal(billContext, false)
+              //                        isSubscribeNewModul.value = false
+                                      if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                                          CoroutineScope(Dispatchers.IO).launch {
+                                              subSkuPurchases(billingResult)
+                                              inAppSkuPurchases(billingResult)
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+              
+                          override fun onBillingServiceDisconnected() {
+                              "Client Disconnected ".bilLog()
+                          }
+                      })
+                  }
+                  private suspend fun subSkuPurchases(billingResult : BillingResult) {
+                      billingClient.queryPurchasesAsync(
+                          QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
+                      ) { _, purchases ->
+                          purchases.size.toString().log()
+              
+                          if(purchases.size > 0) {
+                              ("Item Purchase").log("FATZ")
+                          } else {
+                              ("Item Not Purchase").log("FATZ")
+                              if(billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                                  retriveMySKU()
+                              }
+                          }
+                      }
+                  }
+              
+                  fun getSkuProduct(
+                      queryParam: QueryProductDetailsParams, listener: ProductDetailsResponseListener
+                  ) {
+                      billingClient.queryProductDetailsAsync(queryParam, listener)
+              
+                  }
+              
+                  fun makeProductPurchase(packageType: MyPackageType) {
+                      if (StaticParam.subsSharedFile.isSubscriber) {
+                          toastMaker(billContext, "Already Subscribed!")
+                          return
+                      }
+                      if (packageType == MyPackageType.LIFETIME) {
+                          val queryProductDetailsParams = newBuilder().setProductList(
+                              listOf(
+                                  Product.newBuilder().setProductId(productIds[3].id)
+                                      .setProductType(productIds[3].billingType).build()
+                              )
+                          ).build()
+                          getSkuProduct(queryProductDetailsParams) { billingResult, productDetails ->
+                              var fetchedProduct = fetchProduct(productIds[3].id, productDetails)
+                              fetchedProduct?.let {
+                                  val productDetailsParamsList = listOf(
+                                      BillingFlowParams.ProductDetailsParams.newBuilder()
+                                          // retrieve a value for "productDetails" by calling queryProductDetailsAsync()
+                                          .setProductDetails(it)
+                                          // For One-time product, "setOfferToken" method shouldn't be called.
+                                          // For subscriptions, to get an offer token, call ProductDetails.subscriptionOfferDetails()
+                                          // for a list of offers that are available to the user
+                                          .build()
+                                  )
+              
+                                  val billingFlowParams = BillingFlowParams.newBuilder()
+                                      .setProductDetailsParamsList(productDetailsParamsList).build()
+                                  val resultBill = billingClient.launchBillingFlow(billContext, billingFlowParams)
+              
+                                  when (resultBill.responseCode) {
+                                      BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
+                                          "Billing result: ITEM_ALREADY_OWNED".bilLog()
+                                          productPurchaseListener?.onPurchase("Product Already Purchased!")
+                                      }
+              
+                                      BillingClient.BillingResponseCode.OK -> {
+                                          "Billing result: OK".bilLog()
+                                          productPurchaseListener?.onPurchase("Product Available.")
+                                      }
+              
+                                      else -> {
+                                          "No Billing result".bilLog()
+                                          productPurchaseListener?.onPurchaseFail("No Purchase Made!")
+                                      }
+                                  }
+                              }
+                          }
+              
+              // Launch the billing flow
+                      } else {
+              
+                      }
+                  }
+              
+                  private suspend fun inAppSkuPurchases(billingResult: BillingResult) {
+                      billingClient.queryPurchasesAsync(
+                          QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP)
+                              .build()
+                      ) { _, purchases ->
+                          purchases.size.toString().log()
+              
+                          if (purchases.size > 0) {
+                              ("Item Purchase {INAPP}").log("FATZ")
+                          } else {
+                              ("Item Not Purchase {INAPP}").log("FATZ")
+                              if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                                  retriveMySkuInApp()
+                              }
+                          }
+                      }
+                  }
+              
+                  private fun retriveMySkuInApp() {
+                      val queryProductDetailsParams = newBuilder().setProductList(
+                          listOf(
+              //                        Product.newBuilder().setProductId(productIds[0].id).setProductType(productIds[0].billingType).build(),
+              //                        Product.newBuilder().setProductId(productIds[1].id).setProductType(productIds[1].billingType).build(),
+              //                        Product.newBuilder().setProductId(productIds[2].id).setProductType(productIds[2].billingType).build(),
+                              Product.newBuilder().setProductId(productIds[3].id)
+                                  .setProductType(productIds[3].billingType).build()
+                          )
+                      ).build()
+                      getSkuProduct(queryProductDetailsParams) { billingResult, productDetailsList ->
+              //            Log.e("TAG", "retriveMySkuInApp: \n${productDetailsList.toGson()}\n")
+                          productDetailsList.forEach { product ->
+                              Log.e("TAG", "retriveMySkuInApp: \n${product.toGson()}\n")
+              
+                              val billingProduct = BillingINAPPProduct(product.productId)
+                              billingProduct.id = product.productId
+                              billingProduct.title = product.title
+                              billingProduct.description = product.description
+                              billingProduct.productType = product.productType
+                              // app's Product is One time purchasable, mean it's one kind of LIFETIME For Lifetime Subscription and PRODUCT for single
+                              billingProduct.packageType =
+                                  if (product.title.contains("Lifetime")) MyPackageType.LIFETIME else MyPackageType.PRODUCT
+                              billingProduct.price = product.oneTimePurchaseOfferDetails?.formattedPrice ?: ""
+                              billingProduct.amountmicros =
+                                  product.oneTimePurchaseOfferDetails?.priceAmountMicros ?: 0L
+                              myInAppProducts.add(billingProduct)
+                          }
+                          SubscriptionSetter.liveMyPlan.postValue("Google Play Plan")
+              
+                          liveMyInAppProducts.postValue(myInAppProducts)
+                          "myInAppProducts  :  $myInAppProducts".bilLog()
+                      }
+                  }
+              
+                  private fun retriveMySKU() {
+              
+                      val queryProductDetailsParams = newBuilder().setProductList(
+                          listOf(
+                              Product.newBuilder().setProductId(productIds[0].id)
+                                  .setProductType(productIds[0].billingType).build(),
+                              Product.newBuilder().setProductId(productIds[1].id)
+                                  .setProductType(productIds[1].billingType).build(),
+                              Product.newBuilder().setProductId(productIds[2].id)
+                                  .setProductType(productIds[2].billingType).build(),
+              //                        Product.newBuilder().setProductId(productIds[3].id).setProductType(productIds[3].billingType).build()
+                          )
+                      ).build()
+              
+                      getSkuProduct(queryProductDetailsParams) { billingResult, productDetailsList ->
+                          Log.e("TAG", "retriveMySKU: \n${productDetailsList.toGson()}\n")
+                          mySubProducts.clear()
+                          productDetailsList.forEach {
+                              val product = it
+                              product.subscriptionOfferDetails?.forEach { subsDet ->
+                                  subsDet.pricingPhases.pricingPhaseList.forEachIndexed { index, pricingPhase ->
+                                      val billingProduct = BillingProduct(it.productId)
+                                      pricingPhase.billingPeriod.messageLog()
+                                      billingProduct.title = it.title
+                                      if (pricingPhase.billingPeriod == "P1W") {
+                                          billingProduct.packageType = MyPackageType.WEEK
+                                      } else if (pricingPhase.billingPeriod == "P1Y") {
+                                          billingProduct.packageType = MyPackageType.ANNUAL
+                                      } else if (pricingPhase.billingPeriod == "P6M") {
+                                          billingProduct.packageType = MyPackageType.SIX_MONTH
+                                      } else if (pricingPhase.billingPeriod == "P1M") {
+                                          billingProduct.packageType = MyPackageType.MONTH
+                                      }
+                                      Log.e("Purchase -->", "retriveMySKU: ${it.toGson()}\n")
+              
+                                      billingProduct.period = pricingPhase.billingPeriod
+                                      billingProduct.price = pricingPhase.formattedPrice
+                                      billingProduct.amountmicros = pricingPhase.priceAmountMicros
+              //                        billingProduct.amountmicros = pricingPhase.priceAmountMicros
+                                      mySubProducts.add(billingProduct)
+                                  }
+                              }
+                          }
+                          SubscriptionSetter.liveMyPlan.postValue("Google Play Plan")
+                          livePackageProduct.postValue(mySubProducts)
+                          "mySubProducts : $mySubProducts".bilLog()
+                      }
+                  }
+              
+                  fun makePurchase(type: MyPackageType) {
+                      if (StaticParam.subsSharedFile.isSubscriber) {
+                          toastMaker(billContext, "Already Subscribed!")
+                          return
+                      }
+                      when (type) {
+                          MyPackageType.WEEK -> {
+                              purchaseMyProduct(productIds[0])
+                          }
+              
+                          MyPackageType.SIX_MONTH -> {
+                              purchaseMyProduct(productIds[1])
+                          }
+              
+                          MyPackageType.ANNUAL -> {
+                              purchaseMyProduct(productIds[2])
+                          }
+              
+                          MyPackageType.LIFETIME -> {
+                              purchaseMyProduct(productIds[3])
+                          }
+              
+                          else -> {
+              
+                          }
+                      }
+                  }
+              
+                  private fun purchaseMyProduct(productIDS: ProductBillingIDS) {
+                      val queryProductDetailsParams = newBuilder().setProductList(
+                          listOf(
+                              Product.newBuilder().setProductId(productIDS.id)
+                                  .setProductType(productIDS.billingType).build()
+                          )
+                      ).build()
+                      getSkuProduct(queryProductDetailsParams) { billingResult, productDetails ->
+              //            Log.e("TAG", "purchaseMyProduct: ${productDetails.toGson()}")
+                          var fetchedProduct = fetchProduct(productIDS.id, productDetails)
+                          fetchedProduct?.let { product ->
+                              Log.e(
+                                  "TAG",
+                                  "purchaseMyProduct: 1  ${product.oneTimePurchaseOfferDetails?.toGson()}  "
+                              )
+              
+                              val offerToken = product.subscriptionOfferDetails?.get(0)?.offerToken
+                              offerToken?.let { token ->
+                                  Log.e("TAG", "purchaseMyProduct: 2 $token")
+              
+                                  var productDetailsParams = BillingFlowParams.ProductDetailsParams.newBuilder()
+                                      .setProductDetails(product).setOfferToken(token).build()
+              
+                                  var billingFlowParams = BillingFlowParams.newBuilder()
+                                      .setProductDetailsParamsList(mutableListOf(productDetailsParams)).build()
+              
+                                  var resultBill = billingClient.launchBillingFlow(billContext, billingFlowParams)
+              
+                                  when (resultBill.responseCode) {
+                                      BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
+                                          "Billing result: ITEM_ALREADY_OWNED".bilLog()
+                                          productPurchaseListener?.onPurchase("Product Already Purchased!")
+                                      }
+              
+                                      BillingClient.BillingResponseCode.OK -> {
+                                          "Billing result: OK".bilLog()
+                                          productPurchaseListener?.onPurchase("Product Success Fully Purchased.")
+                                      }
+              
+                                      else -> {
+                                          "No Billing result".bilLog()
+                                          productPurchaseListener?.onPurchaseFail("No Purchase Made!")
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              
+                  private fun fetchProduct(key: String, productDetails: List<ProductDetails>): ProductDetails? {
+                      var product = productDetails.find { it.productId == key }
+                      return product
+                  }
+              
+                  private fun handlePurchase(purchase: Purchase) {
+              
+                      Log.e("TAG", "handlePurchase: ${purchase.toGson()}")
+                      if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
+                          for (product in purchase.products) {
+                              productIds.forEach {
+                                  if (it.id == product) {
+                                      productPurchaseListener?.onPurchased(purchase)
+                                  }
+                              }
+              
+                          }
+                      }
+                      CoroutineScope(Dispatchers.IO).launch {
+                          acknowledgePurchase(purchase = purchase)
+                          if (isConsumable) {
+                              consumePurchase(purchase = purchase)
+                          }
+                      }
+                  }
+              
+                  private suspend fun acknowledgePurchase(purchase: Purchase) {
+                      if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED && !purchase.isAcknowledged) {
+                          val acknowledgePurchaseParams =
+                              AcknowledgePurchaseParams.newBuilder().setPurchaseToken(purchase.purchaseToken)
+              
+                          val ackPurchaseResult = withContext(Dispatchers.IO) {
+                              billingClient?.acknowledgePurchase(acknowledgePurchaseParams.build(),
+                                  object : AcknowledgePurchaseResponseListener {
+                                      override fun onAcknowledgePurchaseResponse(acknowledgePurchaseResult: BillingResult) {
+                                          "acknowledgePurchase: ${acknowledgePurchaseResult.responseCode}".bilLog()
+                                      }
+                                  })
+                          }
+              
+                          if (ackPurchaseResult != null) {
+                              "acknowledgePurchase: ".bilLog()
+                          } else {
+                              "acknowledgePurchase: =>> Not Found Any Purchase Result".bilLog()
+                          }
+                      }
+                  }
+              
+                  fun consumePurchase(purchase: Purchase) {
+                      val consumeParams =
+                          ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()
+                      billingClient?.let {
+                          it.consumeAsync(consumeParams, object : ConsumeResponseListener {
+                              override fun onConsumeResponse(consumeResult: BillingResult, p1: String) {
+                                  "consumePurchase: ${consumeResult.responseCode}".bilLog()
+                              }
+                          })
+                      }
+                  }
+              }
+              
+              @Keep
+              enum class MyPackageType {
+                  ANNUAL, MONTH, SIX_MONTH, WEEK, LIFETIME, PRODUCT
+              }
+       
+       interface ProductPurchaseListener {
+           fun onPurchase(message : String)
+           fun onPurchased(purchase : Purchase)
+           fun onRevenueCatPurchased(purchases : CustomerInfo)
+           fun onPurchaseFail(errorMessage : String)
+       }
+
+
+              ---------- RevenueCatHelper.kt 
+                     
+                     
+                                   object RevenueCatHelper {
+                         var currentSub : Map<String, EntitlementInfo>? = null
+                     
+                         var liverevenuecatedatalist = MutableLiveData<List<RevenueCatData>>()
+                         var revenueCatDataList = ArrayList<RevenueCatData>()
+                         var allAvailablePackages = ArrayList<MyOffer>()
+                         var currentUserPackage = MyOffer()
+                         fun revenueCateInit(context : Context, REVENUECAT_GOOGLE_API : String, abTestPackage : String, productPurchaseListener : ProductPurchaseListener) {
+                             StaticParam.productPurchaseListener = productPurchaseListener
+                     
+                             Purchases.debugLogsEnabled = false
+                     
+                             Purchases.configure(PurchasesConfiguration.Builder(context, REVENUECAT_GOOGLE_API).build())
+                     
+                             Purchases.sharedInstance.updatedCustomerInfoListener = UpdatedCustomerInfoListener { info ->
+                                 currentSub = info.entitlements.active
+                                 productPurchaseListener.onRevenueCatPurchased(info)
+                                 "$currentSub".log("User Purchased List-->")
+                             }
+                             Purchases.sharedInstance.getOfferings(object : ReceiveOfferingsCallback {
+                                 override fun onError(error : PurchasesError) {
+                                     "${error}".log("Purchase List error-->")
+                                 }
+                     
+                                 override fun onReceived(offerings : com.revenuecat.purchases.Offerings) {
+                                     offerings.all.forEach { (s, offering) ->
+                                         var offers = MyOffer(s, offering.availablePackages)
+                                         allAvailablePackages.add(offers)
+                                     }
+                                     allAvailablePackages.forEach { myoffer ->
+                     
+                                         myoffer.packages.forEach {
+                                             var freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
+                                                 it.freePhase?.billingPeriod
+                                             }
+                                             revenueCatDataList.add(
+                                                     RevenueCatData(
+                                                             it.product.id,
+                                                             myoffer.key,
+                                                             it.packageType,
+                                                             it.product.price.formatted,
+                                                             it.product.price.amountMicros,
+                                                             it.product.period.toString(),
+                                                             FreeTrils(freeTrial?.value, freeTrial?.unit.toString(), freeTrial?.iso8601.toString()),
+                                                             it
+                                                     )
+                                             )
+                                         }
+                                     }
+                     
+                                     allAvailablePackages.find { it.key == abTestPackage }?.let {
+                                         currentUserPackage = it
+                                     }
+                                     liveMyPlan.postValue(currentUserPackage.key)
+                                     currentUserPackage?.packages?.forEach {
+                                         var freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
+                                             it.freePhase?.billingPeriod
+                                         }
+                                         revenueCatDataList.add(
+                                                 RevenueCatData(
+                                                         it.product.id,
+                                                         currentUserPackage.key,
+                                                         it.packageType,
+                                                         it.product.price.formatted,
+                                                         it.product.price.amountMicros,
+                                                         it.product.period.toString(),
+                                                         FreeTrils(
+                                                                 freeTrial?.value, freeTrial?.unit.toString(), freeTrial?.iso8601.toString()
+                                                         ),
+                                                         it
+                                                 )
+                                         )
+                                     }
+                                     var myProducts = ArrayList<BillingProduct>()
+                     
+                                     revenueCatDataList.forEach {
+                                         var billingProduct = BillingProduct()
+                                         billingProduct.id = it.id
+                                         billingProduct.title = it.packageName
+                     
+                                         when (it.packageType) {
+                                             PackageType.MONTHLY -> {
+                                                 billingProduct.packageType = MyPackageType.MONTH
+                                             }
+                     
+                                             PackageType.ANNUAL -> {
+                                                 billingProduct.packageType = MyPackageType.ANNUAL
+                                             }
+                     
+                                             PackageType.WEEKLY -> {
+                                                 billingProduct.packageType = MyPackageType.WEEK
+                                             }
+                     
+                                             else -> {
+                                                 billingProduct.packageType = MyPackageType.SIX_MONTH
+                                             }
+                     
+                                         }
+                                         billingProduct.price = it.price
+                                         billingProduct.period = it.period
+                                         billingProduct.amountmicros = it.amountmicros
+                                         myProducts.add(billingProduct)
+                                     }
+                     
+                                     SubscriptionSetter.livePackageProduct.postValue(myProducts)
+                                     liverevenuecatedatalist.postValue(revenueCatDataList)
+                                 }
+                             })
+                         }
+                     
+                         fun purchaseMonth(context : Activity, onSuccess : (StoreTransaction, CustomerInfo) -> Unit) {
+                     //        var purchaseProduct = allAvailablePackages.find { it.key == key }
+                             var product = revenueCatDataList.find { it.packageType == PackageType.MONTHLY }
+                             if(product != null) {
+                     //            var product = purchaseProduct.packages.find { it.packageType == PackageType.MONTHLY }
+                                 product?.let {
+                                     Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(context, product.product).build(),
+                                             { error : PurchasesError, userCancelled : Boolean ->
+                                                 Log.e("TAG", "initview:MonthPackage $error")
+                                             },
+                                             { purchase, customerInfo ->
+                                                 purchase?.let { onSuccess.invoke(it, customerInfo) }
+                                             })
+                                 }
+                             } else {
+                                 Log.e("TAG", "initview:purchaseProduct null!")
+                     
+                             }
+                         }
+                     
+                         fun purchaseOnTime(context : Activity,productkey:PackageType, onSuccess : (StoreTransaction, CustomerInfo) -> Unit) {
+                     //        var purchaseProduct = allAvailablePackages.find { it.key == key }
+                             var product = revenueCatDataList.find { it.packageType == productkey }
+                             if(product != null) {
+                                 product?.let {
+                                     Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(context, product.product).build(),
+                                             { error : PurchasesError, userCancelled : Boolean ->
+                                                 Log.e("TAG", "initview:MonthPackage $error")
+                                             },
+                                             { purchase, customerInfo ->
+                                                 purchase?.let { onSuccess.invoke(it, customerInfo) }
+                                             })
+                                 }
+                             } else {
+                                 Log.e("TAG", "initview:purchaseProduct null!")
+                             }
+                         }
+                     }
+
+
+          --------- SubscriptionSetter.kt class
+
+                        object SubscriptionSetter {
+                  var livePackageProduct = MutableLiveData<List<BillingProduct>>()
+                  var liveMyInAppProducts = MutableLiveData<List<BillingINAPPProduct>>()
+              
+                  var liveMyPlan = MutableLiveData<String>()
+              
+                  fun makeMySubs(
+                      activity: Activity,
+                      packageType: MyPackageType,
+                      onSuccess: (StoreTransaction, CustomerInfo) -> Unit
+                  ) {
+                      if (StaticParam.isRevenueCate) {
+                          if (packageType == MyPackageType.MONTH) {
+                              RevenueCatHelper.purchaseOnTime(activity, PackageType.MONTHLY, onSuccess)
+                          } else if (packageType == MyPackageType.ANNUAL) {
+                              RevenueCatHelper.purchaseOnTime(activity, PackageType.ANNUAL, onSuccess)
+                          } else if (packageType == MyPackageType.SIX_MONTH) {
+                              RevenueCatHelper.purchaseOnTime(activity, PackageType.SIX_MONTH, onSuccess)
+                          } else if (packageType == MyPackageType.WEEK) {
+                              RevenueCatHelper.purchaseOnTime(activity, PackageType.WEEKLY, onSuccess)
+                          }
+                      } else {
+                          BillingHelper.makePurchase(packageType)
+                      }
+                  }
+              
+                  fun makeMyProduct(
+                      activity: Activity, packageType: MyPackageType/* here packageType is Product's  */
+                  ) {
+                      if (StaticParam.isRevenueCate) {
+              
+                      } else {
+                          BillingHelper.makeProductPurchase(packageType)
+                      }
+                  }
+              }
+
+       ------ SubsSharedFile.class
+       
+       class SubsSharedFile(var context : Context) {
+           private var USER_OPEN = "user_open"
+           private var IS_SUB = "is_sub"
+           private var PURCHASED_PRODUCT = "purchased_product"
+       
+           val userOpen : SharedPreferences
+               get() = context.getSharedPreferences(USER_OPEN, Context.MODE_PRIVATE)
+       
+           var isSubscriber : Boolean = false
+       
+           var purchaseProduct : String
+               get() = userOpen.getString(PURCHASED_PRODUCT, "").toString()
+               set(value) {
+                   userOpen.edit().putString(IS_SUB, value).apply()
+               }
+       
+       }
+
+        ----- StaticParam.kt
+        
+              class StaticParam {
+           companion object {
+               var isRevenueCate = false
+               lateinit var billContext: Activity
+               var productPurchaseListener: ProductPurchaseListener? = null
+               lateinit var subsSharedFile: SubsSharedFile
+       
+               var purchaseListener = MutableLiveData<Boolean>()
+           }
+       }
+
+
+ -------- Splace Act
+
+    var productIds = Arrays.asList(
+        ProductBillingIDS("subscribid", BillingClient.ProductType.SUBS),
+        ProductBillingIDS("subscribid", BillingClient.ProductType.SUBS),
+        ProductBillingIDS("subscribe_yearly_kriadl", BillingClient.ProductType.SUBS),
+        ProductBillingIDS("subscribid", BillingClient.ProductType.INAPP)
+    )
+
+        BillingHelper.getBillingInit(this, productIds, object : ProductPurchaseListener {
+                   override fun onPurchase(message: String) {
+                       ("onPurchase: $message").log()
+                       message.messageLog()
+                   }
+       
+                   override fun onRevenueCatPurchased(purchases: CustomerInfo) {
+       
+                   }
+       
+                   override fun onPurchased(purchase: Purchase) {
+                       Log.wtf("Purchase -->", "-- purchase: " + purchase.purchaseState)
+       //                subsSharedFile.isSubscriber = (purchase.purchaseState != -1)
+       //                subsSharedFile.purchaseProduct = purchase.toGson()
+       //                subsSharedFile.purchaseProduct.logPurchase()
+                       val isSubscriber = (purchase.purchaseState != -1)
+       
+                       isSubscribeFun(isSubscriber)
+                   }
+       
+                   override fun onPurchaseFail(errorMessage: String) {
+       
+                   }
+               })
+               
+
+            subsSharedFile = SubsSharedFile(this)
+
+
+             ----------- Subscription Act ---------
+
+              Event to get a Observ is Subscribe or Not
+              
+                purchaseListener.observe(this@NewForYearSubAct, { purchase ->
+                //finish
+                ("Purchasing: $purchase").log()
+                isSubscribedForAllGlobal(this@NewForYearSubAct, purchase)
+
+                setResult(Activity.RESULT_OK)
+                onBackPressed()
+            })
+
+              -- Life time btn click Sub
+
+              SubscriptionSetter.makeMyProduct(
+                    this@NewForYearSubAct,
+                    MyPackageType.LIFETIME
+                )
+
+                  SubscriptionSetter.makeMySubs(this@NewForYearSubAct,
+                            MyPackageType.ANNUAL,
+                            { storeTransaction, customerInfo ->
+
+                            })
+
+                                     SubscriptionSetter.makeMySubs(this@NewForYearSubAct,
+                            MyPackageType.ANNUAL,
+                            { storeTransaction, customerInfo ->
+
+                            })
+
+
+
+                            ---- All Event to get a price and text and all
+
+                                            SubscriptionSetter.liveMyInAppProducts.observe(this@NewForYearSubAct) { billingInAppProduct ->
+                              billingInAppProduct?.let { productsList ->
+                                  val lifetime =
+                                      productsList.find { it.packageType == MyPackageType.LIFETIME && it.productType == BillingClient.ProductType.INAPP }
+                                  lifetime?.let {
+                                      ("Sucsess INAPP Data: ${it.toGson()}").log("FATZ")
+                                      bind.lifetimebtn.visibility = View.VISIBLE
+                                      bind.lifetimepriceid.text = lifetime?.price
+                                      bind.lifetimetitalid.text = lifetime?.title
+              
+                                      bind.lifetimetitalid.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+                                      bind.lifetimetitalid.setSingleLine(true);
+                                      bind.lifetimetitalid.setMarqueeRepeatLimit(-1); // -1 for infinite loop
+                                      bind.lifetimetitalid.setSelected(true); // Required for the marquee effect to work
+              
+              //                       bind.tvpurid.text = lifetime?.description
+              //                       bind.tvpurid.text = "Lifetime Purchase"
+                                  }
+                              }
+                          }
+              
+                          SubscriptionSetter.livePackageProduct.observe(this@NewForYearSubAct,
+                              object : Observer<List<BillingProduct>?> {
+                                  override fun onChanged(billingProducts: List<BillingProduct>?) {
+                                      billingProducts?.let { productsList ->
+              
+                                          val annualPlan =
+                                              productsList.find { it.packageType == MyPackageType.ANNUAL }
+                                          val weekPlan =
+                                              productsList.find { it.packageType == MyPackageType.WEEK }
+                                          val sixPlan =
+                                              productsList.find { it.packageType == MyPackageType.SIX_MONTH }
+              
+              //                            bind.txtPurchaseMonth.text = monthPlan?.title
+              //                            bind.priserid.text = weekPlan?.title
+              //                            binding.thirdidyearly.text = sixPlan?.title
+              
+                                          bind.tvPriceyear.text = annualPlan?.price
+                                          bind.priserid.text = weekPlan?.price
+                                          bind.sixmonthjid.text = sixPlan?.price
+              
+                                          bind.weeklytvlongtvid.text =
+                                              "• Weekly Subscription : ${weekPlan?.price}"
+                                          bind.monthlytvlongtvid.text =
+                                              "• Six Monthly Subscription : ${sixPlan?.price}"
+                                          bind.yearlytvlongtvid.text =
+                                              "• Yearly Subscription : ${annualPlan?.price}"
+              
+                                          bind.montbottomid.text = "per month \n ₹341/-"
+                                          bind.montbottomid.text = "per month \n ₹341/-"
+              
+                                          var isFreeTrial = productsList.any { it.price == "Free" }
+              
+                                          if (isFreeTrial) {
+                                              bind.startfreetrybtn.text = getSubscribeText(true)
+                                          } else {
+                                              bind.startfreetrybtn.text = getSubscribeText(false)
+                                          }
+                                      }
+                                  }
+                              })
+
+
+        
 // TextView Horizently AutoScroll TextView SCroll View
 
        bind.lifetimetitalid.setEllipsize(TextUtils.TruncateAt.MARQUEE);
