@@ -68,8 +68,7 @@
 
             --------- BillingHelper Class -------
             
-                        
-                     object BillingHelper {
+                            object BillingHelper {
                 var billingClient: BillingClient? = null
                 var productIds: List<ProductBillingIDS> = listOf(
                     ProductBillingIDS("subscribe_weekly_kriadl", BillingClient.ProductType.SUBS),
@@ -141,53 +140,64 @@
             
                     billingClient?.startConnection(object : BillingClientStateListener {
                         override fun onBillingSetupFinished(billingResult: BillingResult) {
+            
                             "Client Setup Response : ${billingResult.responseCode == BillingClient.BillingResponseCode.OK}".bilLog()
                             ("Connection ").log("FATZ")
-                            billingClient?.queryPurchasesAsync(
-                                QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS)
-                                    .build()
-                            ) { _, purchases ->
-                                purchases.size.toString().log()
-                                if (purchases.size > 0) {
-                                    ("Item Purchase").log("FATZ")
-                                    isSubscribedForAllGlobal(billContext!!, true)
-                                    StaticParam.purchaseListener.postValue(true)
-                                    onNextAct.invoke(isSubScribe)
-                                } else {
-                                    ("11 Item Not Purchase | Res Code: ${billingResult.responseCode}").log("FATZ")
+            
+                            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+            
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    subSkuPurchases(billingResult)
+                                    inAppSkuPurchases(billingResult)
+                                }
+            
+                                billingClient?.queryPurchasesAsync(
+                                    QueryPurchasesParams.newBuilder()
+                                        .setProductType(BillingClient.ProductType.SUBS).build()
+                                ) { _, purchases ->
+                                    purchases.size.toString().log()
+                                    if (purchases.size > 0) {
+                                        ("Item Purchase").log("FATZ")
+                                        isSubscribedForAllGlobal(billContext!!, true)
+                                        StaticParam.purchaseListener.postValue(true)
+                                        onNextAct.invoke(true)
+                                    } else {
+                                        ("11 Item Not Purchase | Res Code: ${billingResult.responseCode}").log("FATZ")
             //                        isSubscribedForAllGlobal(billContext!!, false)
             //                        isSubscribeNewModul.value = false
-                                    billingClient?.queryPurchasesAsync(
-                                        QueryPurchasesParams.newBuilder()
-                                            .setProductType(BillingClient.ProductType.INAPP).build()
-                                    ) { _, purchases ->
-                                        purchases.size.toString().log()
-                                        if (purchases.size > 0) {
-                                            ("11 Item Purchas in Appe").log("FATZ")
-                                            isSubscribedForAllGlobal(billContext!!, true)
-                                            StaticParam.purchaseListener.postValue(true)
-                                            onNextAct.invoke(isSubScribe)
-                                        } else {
-                                            ("11 Item Not Purchase in APP | Res Code: ${billingResult.responseCode}").log(
-                                                "FATZ"
-                                            )
-                                            isSubscribedForAllGlobal(billContext!!, false)
-                                            onNextAct.invoke(isSubScribe)
-                                        }
-                                    }
-                                    if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                                        CoroutineScope(Dispatchers.IO).launch {
-                                            subSkuPurchases(billingResult)
-                                            inAppSkuPurchases(billingResult)
+                                        billingClient?.queryPurchasesAsync(
+                                            QueryPurchasesParams.newBuilder()
+                                                .setProductType(BillingClient.ProductType.INAPP).build()
+                                        ) { _, purchases ->
+                                            purchases.size.toString().log()
+                                            if (purchases.size > 0) {
+                                                ("11 Item Purchas in App").log("FATZ")
+                                                isSubscribedForAllGlobal(billContext!!, true)
+                                                StaticParam.purchaseListener.postValue(true)
+                                                onNextAct.invoke(true)
+                                            } else {
+                                                ("11 Item Not Purchase in APP | Res Code: ${billingResult.responseCode}").log(
+                                                    "FATZ"
+                                                )
+                                                isSubscribedForAllGlobal(billContext!!, false)
+                                                onNextAct.invoke(false)
+                                            }
                                         }
                                     }
                                 }
             //                    onNextAct.invoke(isSubScribe)
+                            } else {
+                                isSubscribedForAllGlobal(billContext!!, false)
+                                onNextAct.invoke(false)
                             }
                         }
             
                         override fun onBillingServiceDisconnected() {
                             "Client Disconnected ".bilLog()
+                            CoroutineScope(Dispatchers.Main).launch {
+                                isSubscribedForAllGlobal(billContext!!, false)
+                                onNextAct.invoke(false)
+                            }
                         }
                     })
                 }
@@ -233,9 +243,9 @@
                         purchases.size.toString().log()
             
                         if (purchases.size > 0) {
-                            ("Item Purchase").log("FATZ")
+                            ("Item Subscription Purchase").log("FATZ")
                         } else {
-                            ("Item Not Purchase").log("FATZ")
+                            ("Item Subscription Not Purchase").log("FATZ")
                             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                                 retriveMySKU()
                             }
@@ -542,7 +552,7 @@
                     }
                 }
             }
-            
+
             @Keep
             enum class MyPackageType {
                 ANNUAL, MONTH, SIX_MONTH, WEEK, LIFETIME, PRODUCT
