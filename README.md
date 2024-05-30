@@ -1368,200 +1368,187 @@
              exclude("META-INF/*.kotlin_module")
          }
 
-      // PlaySafety.kt class
-      
-                class PlaySafety(
-              var activity: Activity, var cloudProjectNumber: Long, private var onNext: () -> Unit
-          ) {
-              private var interpin: StandardIntegrityManager.StandardIntegrityToken? = null
-          
-              fun cxroot() {
-                  val rootBeer = RootBeer(activity)
-                  if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
-                      PlayInitDialog(activity)
-                  } else {
-                      onNext.invoke()
-                  }
-              }
-          
-              fun sft() {
-                  val standardIntegrityManager: StandardIntegrityManager =
-                      IntegrityManagerFactory.createStandard(activity);
-                  var integrityTokenProvider: StandardIntegrityManager.StandardIntegrityTokenProvider;
-                  val cloudProjectNumber = cloudProjectNumber
-          
-                  // Prepare integrity token. Can be called once in a while to keep internal
-                  // state fresh.
-          
-                  standardIntegrityManager.prepareIntegrityToken(
-                      StandardIntegrityManager.PrepareIntegrityTokenRequest.builder()
-                          .setCloudProjectNumber(cloudProjectNumber).build()
-                  ).addOnSuccessListener {
-                      integrityTokenProvider = it
-                      val integrityTokenResponse: Task<StandardIntegrityManager.StandardIntegrityToken>? =
-                          integrityTokenProvider.request(
-                              StandardIntegrityManager.StandardIntegrityTokenRequest.builder()
-                                  .setRequestHash(generateNonce()).build()
-                          )
-                      integrityTokenResponse!!.addOnSuccessListener { response ->
-                          interpin = response
-                          decryptToken(response.token())
-                          "check token addOnSuccessListener:${response.token()}".log()
-                      }.addOnFailureListener { exception ->
-                          "check token addOnFailureListener:${exception.message}".log()
-                      }
-                  }.addOnFailureListener(
-                      activity
-                  ) { p0 ->
-                      "check token addOnFailureListener:1:${p0.message}".log()
-          
-                      val rootBeer = RootBeer(activity)
-                      if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
-                          CoroutineScope(Dispatchers.Main).launch {
-                              PlayInitDialog(activity)
-                          }
-                      } else {
-                          activity.runOnUiThread {
-                              onNext.invoke()
-                          }
-                      }
-                      "check token addOnFailureListener:2:${p0.message}".log()
-                  }
-              }
-          
-              private fun decryptToken(token: String) {
-                  try {
-                      "check the response is the:decryptToken:$token".log()
-                      val requestObj = DecodeIntegrityTokenRequest()
-                      requestObj.integrityToken = token
-                      val credentials = GoogleCredentials.fromStream(activity.assets.open("credentials.json"))
-                      val requestInitializer: HttpRequestInitializer = HttpCredentialsAdapter(credentials)
-                      val initialiser: GoogleClientRequestInitializer = PlayIntegrityRequestInitializer()
-                      val playIntegrity =
-                          PlayIntegrity.Builder(NetHttpTransport(), JacksonFactory(), requestInitializer)
-                              .setApplicationName(
-                                  activity.resources.getString(
-                                      R.string.app_name
-                                  )
-                              ).setGoogleClientRequestInitializer(initialiser)
-                      val play = playIntegrity.build()
-          
-                      CoroutineScope(Dispatchers.IO).launch {
-                          "check the package name:${activity.packageName}".log()
-                          try {
-                              val response =
-                                  play.v1().decodeIntegrityToken(activity.packageName, requestObj).execute()
-                              val rootBeer = RootBeer(activity)
-                              if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
-                                  CoroutineScope(Dispatchers.Main).launch {
-                                      playdialog(1)
-                                  }
-                              } else {
-                                  isRecognized(response)
-                              }
-                              "check the response is the:123:response ${isRecognized(response)} and $response".log()
-          //                "check the response is the:123:response ${response["tokenPayloadExternal"]}".log()
-                          } catch (e: Exception) {
-                              "check the response is the:123:catch".log()
-                              val rootBeer = RootBeer(activity)
-                              if (rootBeer.isRooted || rootBeer.isRootedWithBusyBoxCheck) {
-                                  CoroutineScope(Dispatchers.Main).launch {
-                                      "check the response is the:123:catch:root device".log()
-                                      playdialog(1)
-                                  }
-                              } else {
-                                  "check the response is the:123:catch:not root device".log()
-                                  activity.runOnUiThread {
-                                      onNext.invoke()
-                                  }
-                              }
-                          }
-                      }
-                  } catch (e: Exception) {
-                      activity.runOnUiThread {
-                          onNext.invoke()
-                      }
-                  }
-              }
-          
-              @SuppressLint("SuspiciousIndentation")
-              fun isRecognized(payload: DecodeIntegrityTokenResponse) {
-                  val appLicensingVerdict = payload.tokenPayloadExternal.accountDetails.appLicensingVerdict
-          
-                  val appRecognitionVerdict = payload.tokenPayloadExternal.appIntegrity.appRecognitionVerdict
-          
-                  val deviceRecognitionVerdict =
-                      payload.tokenPayloadExternal.deviceIntegrity.deviceRecognitionVerdict
-          
-          //        val isSafeLast = payload.tokenPayloadExternal.accountDetails.appLicensingVerdict.isNotEmpty() && (appLicensingVerdict == "LICENSED") && (appRecognitionVerdict == "PLAY_RECOGNIZED") && (deviceRecognitionVerdict[0] == "MEETS_DEVICE_INTEGRITY")
-                  val isSafeLast =
-                      payload.tokenPayloadExternal.accountDetails.appLicensingVerdict.isNotEmpty() && appLicensingVerdict.contains(
-                          "LICENSED"
-                      ) && appRecognitionVerdict.contains("PLAY_RECOGNIZED") && deviceRecognitionVerdict.contains(
-                          "MEETS_DEVICE_INTEGRITY"
-                      )
-                  ("check the device is the device:${appLicensingVerdict.contains("LICENSED")} " + "and ${
-                      appRecognitionVerdict.contains(
-                          "PLAY_RECOGNIZED"
-                      )
-                  } and " + "${deviceRecognitionVerdict.contains("MEETS_DEVICE_INTEGRITY")} and" + " ${payload.tokenPayloadExternal.accountDetails.appLicensingVerdict.isNotEmpty()}").log()
-          
-                  "check the device is the device:isSafeLast:$isSafeLast".log()
-          
-                  if (isSafeLast) {
-                      "check the device is the device:isSafeLast:$isSafeLast".log()
-                      activity.runOnUiThread {
-                          onNext.invoke()
-                      }
-                  } else {
-                      "check the device is the device:else".log()
-                      activity.runOnUiThread {
-                          playdialog(1)
-                      }
-                  }
-              }
-          
-              private fun playdialog(showDialogType: Int) {
-                  val integrityDialogResponseCode: Task<Int> = interpin!!.showDialog(activity, showDialogType)
-                  integrityDialogResponseCode.addOnSuccessListener {
-                      "playdialog: Success----> $it".log()
-                      if (it == 2) {
-                          activity.finishAffinity()
-                      } else if (it == 3) {
-                          try {
-                              activity.startActivity(
-                                  Intent(
-                                      Intent.ACTION_VIEW,
-                                      Uri.parse("market://details?id=${activity.packageName}")
-                                  )
-                              )
-                              activity.finishAffinity()
-                          } catch (e: ActivityNotFoundException) {
-                              activity.startActivity(
-                                  Intent(
-                                      Intent.ACTION_VIEW,
-                                      Uri.parse("https://play.google.com/store/apps/details?id=${activity.packageName}")
-                                  )
-                              )
-                              activity.finishAffinity()
-                          }
-                      }
-                  }.addOnFailureListener {
-                      "playdialog: Failure----> $it".log()
-                  }
-              }
-          
-              private fun generateNonce(): String {
-                  val length = 50
-                  var nonce = ""
-                  val allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-                  for (i in 0 until length) {
-                      nonce += allowed[Math.floor(Math.random() * allowed.length).toInt()].toString()
-                  }
-                  return nonce
-              }
-          }
-          
+            
+        /*
+        
+        
+        -keep class com.google.api.services.playintegrity.** { *; } #REQUIRED
+        -keep class com.google.api.client.** { *; } #REQUIRED
+        
+        
+        private fun playSafety() {
+                Protectivity(this, BuildConfig.CLOUD_PROJECT_NUM.toLong(), {
+                    initview()
+                }, {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")))
+                })
+            }
+        
+                buildConfigField("String", "CLOUD_PROJECT_NUM", "\"787207734962\"")
+        
+                coreLibraryDesugaringEnabled = true
+        
+        *  //Play integrity
+            implementation("com.google.android.play:integrity:1.3.0")
+        
+            implementation 'com.google.android.gms:play-services-auth:20.7.0'
+            implementation("com.google.apis:google-api-services-playintegrity:v1-rev20231109-2.0.0") {}
+            //  Google Authentication and api Access
+            implementation("com.google.api-client:google-api-client-jackson2:1.20.0")
+            implementation 'com.google.auth:google-auth-library-credentials:1.20.0'
+            implementation("com.google.auth:google-auth-library-oauth2-http:1.20.0")
+        
+            //desugar
+            coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+        * */
+        
+        class Protectivity {
+            private var onNext : () -> Unit
+            private var onReCheck : () -> Unit
+            var activity : Activity
+            private lateinit var interPin : StandardIntegrityManager.StandardIntegrityToken
+        
+            constructor(activity : Activity, cloudProjectNumber : Long, onNext : () -> Unit, onReCheck : () -> Unit) {
+                this.onNext = onNext
+                this.onReCheck = onReCheck
+                this.activity = activity
+        
+                if(activity.isOnlineed) {
+                    val standardIntegrityManager : StandardIntegrityManager = IntegrityManagerFactory.createStandard(activity)
+                    var integrityTokenProvider : StandardIntegrityManager.StandardIntegrityTokenProvider
+                    val standardIntegrityResponse = standardIntegrityManager.prepareIntegrityToken(
+                            StandardIntegrityManager.PrepareIntegrityTokenRequest.builder().setCloudProjectNumber(cloudProjectNumber).build()
+                    )
+                    standardIntegrityResponse.addOnSuccessListener {
+                        integrityTokenProvider = it
+                        val integrityTokenResponse : Task<StandardIntegrityManager.StandardIntegrityToken>? = integrityTokenProvider.request(
+                                StandardIntegrityManager.StandardIntegrityTokenRequest.builder().setRequestHash(generateNonce()).build()
+                        )
+                        integrityTokenResponse?.addOnSuccessListener { response ->
+                            interPin = response
+                            decryptToken(response.token())
+                        }?.addOnFailureListener {
+                            rootHunter(activity)
+                        }
+                    }.addOnFailureListener {
+                        "Token Exception $it".logPlay()
+                        rootHunter(activity)
+                    }
+        
+                } else {
+                    rootHunter(activity)
+                }
+            }
+        
+            private fun decryptToken(token : String) {
+        
+                val requestObj = DecodeIntegrityTokenRequest()
+                requestObj.integrityToken = token
+                val credentials = GoogleCredentials.fromStream(activity.assets.open("credentials.json"))
+                val requestInitializer : HttpRequestInitializer = HttpCredentialsAdapter(credentials)
+                val mHttpTransport = NetHttpTransport()
+                val mJacksonFactory = JacksonFactory()
+                val mInitializer : GoogleClientRequestInitializer = PlayIntegrityRequestInitializer()
+        
+        
+                val playIntegrity =
+                    PlayIntegrity.Builder(mHttpTransport, mJacksonFactory, requestInitializer).setApplicationName(activity.resources.getString(
+                        R.string.app_name))
+                        .setGoogleClientRequestInitializer(mInitializer)
+                val play = playIntegrity.build()
+        
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val response = play.v1().decodeIntegrityToken(activity.packageName, requestObj).execute()
+                        "response $response".logPlay()
+                        recognizer(response)
+                    } catch (e : Exception) {
+                        "response Exception :$e".logPlay()
+                        rootHunter(activity)
+                    }
+                }
+            }
+        
+            private fun recognizer(response : DecodeIntegrityTokenResponse) {
+        
+                val appLicensingVerdict = response.tokenPayloadExternal.accountDetails.appLicensingVerdict
+        
+                val appRecognitionVerdict = response.tokenPayloadExternal.appIntegrity.appRecognitionVerdict
+        
+                val deviceRecognitionVerdict = response.tokenPayloadExternal.deviceIntegrity.deviceRecognitionVerdict
+                val isSafeLast =
+                    response.tokenPayloadExternal.accountDetails.appLicensingVerdict.isNotEmpty() && appLicensingVerdict.contains("LICENSED") && appRecognitionVerdict.contains(
+                            "PLAY_RECOGNIZED"
+                    ) && deviceRecognitionVerdict.contains("MEETS_DEVICE_INTEGRITY")
+                if(isSafeLast) {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        onNext.invoke()
+                    }
+        
+                } else {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        this@Protectivity.playDialog(isLICENSED = getDialogTypeCode(appLicensingVerdict))
+                    }
+                }
+            }
+        
+            private fun generateNonce() : String {
+                val length = 50
+                var nonce = ""
+                val allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+                for (i in 0 until length) {
+                    nonce += allowed[floor(Math.random() * allowed.length).toInt()].toString()
+                }
+                return nonce
+            }
+        
+            private fun rootHunter(activity : Activity, respond : () -> Unit = onNext) {
+                val rootBeer = RootBeer(activity)
+                if(! rootBeer.isRooted || ! rootBeer.isRootedWithBusyBoxCheck) {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        respond.invoke()
+                    }
+                } else {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        if(! activity.isFinishing) {
+                            PlayInitDialog(activity)
+                        }
+                    }
+                }
+            }
+        
+            private fun playDialog(isLICENSED : Int) {
+                interPin.showDialog(activity, /*isLICENSED*/ GET_LICENSED).addOnCanceledListener {
+                    "Dialog closed".logPlay()
+                }.addOnSuccessListener {
+                    "==> ${it}".logPlay()
+                }.addOnCompleteListener {
+                    if(it.result == DIALOG_SUCCESSFUL) {
+                        "DIALOG_SUCCESSFUL".logPlay()
+                        onReCheck.invoke()
+                    }
+                    if(it.result == DIALOG_CANCELLED) {
+                        "DIALOG_CANCELLED".logPlay()
+                        activity.finishAffinity()
+                        exitProcess(0)
+                    }
+                    if(it.result == DIALOG_FAILED) {
+                        "DIALOG_FAILED".logPlay()
+                    }
+                    if(it.result == DIALOG_UNAVAILABLE) {
+                        "DIALOG_UNAVAILABLE".logPlay()
+                    }
+                }.addOnFailureListener {
+                    "dialog Exception = ${it.message}".logPlay()
+                }
+            }
+        
+            private fun getDialogTypeCode(appLicensingVerdict : String) : Int {
+                return if(appLicensingVerdict == "UNLICENSED") {
+                    GET_LICENSED
+                } else 0
+            }
+        }
           
           //todo: Need to Add Below Lib
           //implementation("com.google.apis:google-api-services-playintegrity:v1-rev20220211-1.32.1")
