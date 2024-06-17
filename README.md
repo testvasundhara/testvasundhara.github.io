@@ -1,6 +1,557 @@
 # testvasundhara.github.io
 
 
+// Revanue Cat
+
+             --Splace Screen 
+
+                                 RevenueCatHelper.revenueCateInit(
+                            this, "abcvddswd", "Current Plan",
+                            object : ProductPurchaseListener {
+                                override fun onPurchase(message: String) {
+                                    message.messageLog()
+                                }
+                
+                                override fun onPurchased(purchases: Purchase) {
+                                }
+                
+                                override fun onRevenueCatPurchased(purchases: CustomerInfo) {
+                //                        if(purchases.activeSubscriptions)
+                                    Log.e("TAG", "onRevenueCatPurchased: ${purchases.activeSubscriptions}")
+                                    Log.e("TAG", "onRevenueCatPurchased: ${purchases.entitlements.active}")
+                
+                                    val data = purchases.entitlements.active.toString()
+                                    val isActive: Boolean = extractBooleanValue(data, "isActive")
+                
+                                    ("isActive: $isActive").log("onRevenueCatPurchased")
+                
+                                    SubsSharedFile(this@SplashActivity).isSubscriber =
+                                        purchases.activeSubscriptions.isNotEmpty()
+                                    subsSharedFile!!.purchaseProduct = purchases.toGson()
+                                    subsSharedFile!!.purchaseProduct.logPurchase()
+                
+                                    val isSubscriber = isActive
+                                    isSubscribeFun(isSubscriber)
+                                }
+                
+                                override fun onPurchaseFail(errorMessage: String) {
+                
+                                }
+                            }
+                        ) {
+                            runOnUiThread {
+                                if (isFirstTime) {
+                                    isFirstTime = false
+                                    ("Time 2222222").log("TIMECHECK")
+                                    gotoLoadApp()
+                                }
+                            }
+                        }
+
+
+
+           ---- Revanue Cat Class
+
+                                   object RevenueCatHelper {
+                            var currentSub: Map<String, EntitlementInfo>? = null
+                            var isSplash = true
+                        
+                            var liverevenuecatedatalist = MutableLiveData<List<RevenueCatData>>()
+                            var revenueCatDataList = ArrayList<RevenueCatData>()
+                            var allAvailablePackages = ArrayList<MyOffer>()
+                            var currentUserPackage = MyOffer()
+                            fun revenueCateInit(
+                                context: Context,
+                                REVENUECAT_GOOGLE_API: String,
+                                abTestPackage: String,
+                                productPurchaseListener: ProductPurchaseListener,
+                                openNextScreen: () -> Unit
+                            ) {
+                                StaticParam.isRevenueCate = true
+                                StaticParam.productPurchaseListener = productPurchaseListener
+                        
+                                Purchases.debugLogsEnabled = false
+                        
+                                Purchases.configure(PurchasesConfiguration.Builder(context, REVENUECAT_GOOGLE_API).build())
+                        
+                                Purchases.sharedInstance.updatedCustomerInfoListener = UpdatedCustomerInfoListener { info ->
+                                    currentSub = info.entitlements.active
+                                    productPurchaseListener.onRevenueCatPurchased(info)
+                                    "$currentSub".log("User Purchased List-->")
+                                    if (isSplash) {
+                                        isSplash = false
+                                        openNextScreen.invoke()
+                                    }
+                                }
+                        
+                                Purchases.sharedInstance.getOfferings(object : ReceiveOfferingsCallback {
+                                    override fun onError(error: PurchasesError) {
+                                        "${error}".log("Purchase List error-->")
+                                    }
+                        
+                                    override fun onReceived(offerings: com.revenuecat.purchases.Offerings) {
+                                        offerings.all.forEach { (s, offering) ->
+                                            var offers = MyOffer(s, offering.availablePackages)
+                                            allAvailablePackages.add(offers)
+                                        }
+                                        allAvailablePackages.forEach { myoffer ->
+                        
+                                            myoffer.packages.forEach {
+                                                var freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
+                                                    it.freePhase?.billingPeriod
+                                                }
+                                                revenueCatDataList.add(
+                                                    RevenueCatData(
+                                                        it.product.id,
+                                                        myoffer.key,
+                                                        it.packageType,
+                                                        it.product.price.formatted,
+                                                        it.product.price.amountMicros,
+                                                        it.product.period.toString(),
+                                                        FreeTrils(
+                                                            freeTrial?.value,
+                                                            freeTrial?.unit.toString(),
+                                                            freeTrial?.iso8601.toString()
+                                                        ),
+                                                        it
+                                                    )
+                                                )
+                                            }
+                                        }
+                        
+                                        allAvailablePackages.find { it.key == abTestPackage }?.let {
+                                            currentUserPackage = it
+                                        }
+                                        liveMyPlan.postValue(currentUserPackage.key)
+                                        currentUserPackage?.packages?.forEach {
+                                            var freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
+                                                it.freePhase?.billingPeriod
+                                            }
+                                            revenueCatDataList.add(
+                                                RevenueCatData(
+                                                    it.product.id,
+                                                    currentUserPackage.key,
+                                                    it.packageType,
+                                                    it.product.price.formatted,
+                                                    it.product.price.amountMicros,
+                                                    it.product.period.toString(),
+                                                    FreeTrils(
+                                                        freeTrial?.value,
+                                                        freeTrial?.unit.toString(),
+                                                        freeTrial?.iso8601.toString()
+                                                    ),
+                                                    it
+                                                )
+                                            )
+                                        }
+                                        var myProducts = ArrayList<BillingProduct>()
+                        
+                                        revenueCatDataList.forEach {
+                                            var billingProduct = BillingProduct()
+                                            billingProduct.id = it.id
+                                            billingProduct.title = it.packageName
+                        
+                                            when (it.packageType) {
+                                                PackageType.MONTHLY -> {
+                                                    billingProduct.packageType = MyPackageType.MONTH
+                                                }
+                        
+                                                PackageType.ANNUAL -> {
+                                                    billingProduct.packageType = MyPackageType.ANNUAL
+                                                }
+                        
+                                                PackageType.WEEKLY -> {
+                                                    billingProduct.packageType = MyPackageType.WEEK
+                                                }
+                        
+                                                else -> {
+                                                    billingProduct.packageType = MyPackageType.SIX_MONTH
+                                                }
+                        
+                                            }
+                                            billingProduct.price = it.price
+                                            billingProduct.period = it.period
+                                            billingProduct.amountmicros = it.amountmicros
+                                            myProducts.add(billingProduct)
+                                        }
+                        
+                                        SubscriptionSetter.livePackageProduct.postValue(myProducts)
+                                        liverevenuecatedatalist.postValue(revenueCatDataList)
+                                    }
+                                })
+                            }
+                        
+                            fun RestorePurchase(activity: Activity, onNext: () -> Unit) {
+                                Purchases.sharedInstance.restorePurchases(object : ReceiveCustomerInfoCallback {
+                                    override fun onError(error: PurchasesError) {
+                                        "onRevenueCatPurchased".log("Error--> $error")
+                                        activity.runOnUiThread {
+                                            Snackbar.make(
+                                                activity.findViewById(android.R.id.content),
+                                                activity.getString(R.string.nothing_to_restore),
+                                                Snackbar.LENGTH_SHORT
+                                            ).apply {
+                                                setActionTextColor(Color.WHITE)
+                                                show()
+                                            }
+                                        }
+                                        onNext()
+                                    }
+                        
+                                    override fun onReceived(customerInfo: CustomerInfo) {
+                                        ("restorePurchases $customerInfo").log("onRevenueCatPurchased")
+                                        onNext()
+                                        activity.setResult(Activity.RESULT_OK)
+                                        activity.finish()
+                                    }
+                                })
+                            }
+                        
+                            fun purchaseMonth(context: Activity, onSuccess: (StoreTransaction, CustomerInfo) -> Unit) {
+                        //        var purchaseProduct = allAvailablePackages.find { it.key == key }
+                                var product = revenueCatDataList.find { it.packageType == PackageType.MONTHLY }
+                                if (product != null) {
+                        //            var product = purchaseProduct.packages.find { it.packageType == PackageType.MONTHLY }
+                                    product?.let {
+                                        Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(
+                                            context,
+                                            product.product
+                                        ).build(),
+                                            { error: PurchasesError, userCancelled: Boolean ->
+                                                Log.e("TAG", "initview:MonthPackage $error")
+                                            },
+                                            { purchase, customerInfo ->
+                                                purchase?.let { onSuccess.invoke(it, customerInfo) }
+                                            })
+                                    }
+                                } else {
+                                    Log.e("TAG", "initview:purchaseProduct null!")
+                        
+                                }
+                            }
+                        
+                            fun purchaseOnTime(
+                                context: Activity,
+                                productkey: PackageType,
+                                onSuccess: (StoreTransaction, CustomerInfo) -> Unit
+                            ) {
+                        //        var purchaseProduct = allAvailablePackages.find { it.key == key }
+                                val product = revenueCatDataList.find { it.packageType == productkey }
+                                if (product != null) {
+                                    product?.let {
+                                        Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(
+                                            context,
+                                            product.product
+                                        ).build(),
+                                            { error: PurchasesError, userCancelled: Boolean ->
+                                                Log.e("TAG", "initview:MonthPackage $error")
+                                            },
+                                            { purchase, customerInfo ->
+                                                purchase?.let { onSuccess.invoke(it, customerInfo) }
+                                            })
+                                    }
+                                } else {
+                                    Log.e("TAG", "initview:purchaseProduct null!")
+                                }
+                            }
+                        }
+                          
+        @Keep
+        data class BillingProduct(
+            var id: String = "",
+            var title: String = "",
+            var description: String = "",
+            var packageType: MyPackageType? = null,
+            var price: String = "",
+            var amountmicros: Long = 0L,
+            var amountmicrostoPriceInt: Int = 0,
+            var period: String = "",
+            var productType: String = BillingClient.ProductType.SUBS,
+        )
+        
+        @Keep
+        data class BillingINAPPProduct(
+            var id: String = "",
+            var title: String = "",
+            var description: String = "",
+            var packageType: MyPackageType? = null,
+            var price: String = "",
+            var amountmicros: Long = 0L,
+            var amountmicrostoPriceInt: Int = 0,
+            var period: String = "",
+            var productType: String = BillingClient.ProductType.SUBS,
+        )
+        
+        @Keep
+        data class ProductBillingIDS(var id: String, var billingType: String)
+
+        
+        
+        @Keep
+        data class RevenueCatData(
+            var id : String,
+            var packageName:String,
+            var packageType : PackageType,
+            var price : String,
+            var amountmicros : Long,
+            var period : String,
+            var freeTrial : FreeTrils,
+            var product : Package
+        )
+        
+        @Keep
+        data class FreeTrils(var period : Int? = null, var TimeType : String, var i8 : String)
+        @Keep
+        data class MyOffer(var key : String="", var packages : List<Package> = listOf())
+
+         ----- SubscriptionSetter.clas
+
+                         
+                object SubscriptionSetter {
+                    var livePackageProduct = MutableLiveData<List<BillingProduct>>()
+                    var liveMyInAppProducts = MutableLiveData<List<BillingINAPPProduct>>()
+                
+                    var liveMyPlan = MutableLiveData<String>()
+                
+                    fun makeMySubs(
+                        activity: Activity,
+                        packageType: MyPackageType,
+                        onSuccess: (StoreTransaction, CustomerInfo) -> Unit
+                    ) {
+                        if (StaticParam.isRevenueCate) {
+                            when (packageType) {
+                                MyPackageType.MONTH -> {
+                                    RevenueCatHelper.purchaseOnTime(activity, PackageType.MONTHLY, onSuccess)
+                                }
+                
+                                MyPackageType.ANNUAL -> {
+                                    RevenueCatHelper.purchaseOnTime(activity, PackageType.ANNUAL, onSuccess)
+                                }
+                
+                                MyPackageType.SIX_MONTH -> {
+                                    RevenueCatHelper.purchaseOnTime(activity, PackageType.SIX_MONTH, onSuccess)
+                                }
+                
+                                MyPackageType.WEEK -> {
+                                    RevenueCatHelper.purchaseOnTime(activity, PackageType.WEEKLY, onSuccess)
+                                }
+                
+                                else -> {
+                                    RevenueCatHelper.purchaseOnTime(activity, PackageType.SIX_MONTH, onSuccess)
+                                }
+                            }
+                        } else {
+                            BillingHelper.makePurchase(packageType)
+                        }
+                    }
+                
+                    fun makeMyProduct(
+                        activity: Activity,
+                        packageType: MyPackageType/* here packageType is Product's  */,
+                        onSuccess: (StoreTransaction, CustomerInfo) -> Unit
+                    ) {
+                        if (StaticParam.isRevenueCate) {
+                            RevenueCatHelper.purchaseOnTime(activity, getRevenuePackage(packageType), onSuccess)
+                        } else {
+                            BillingHelper.makeProductPurchase(packageType)
+                        }
+                    }
+                    fun getRevenuePackage(packageType : MyPackageType) : PackageType {
+                        if(packageType == MyPackageType.MONTH) {
+                            return PackageType.MONTHLY
+                        } else if(packageType == MyPackageType.ANNUAL) {
+                            return PackageType.ANNUAL
+                        } else if(packageType == MyPackageType.SIX_MONTH) {
+                            return PackageType.SIX_MONTH
+                        } else if(packageType == MyPackageType.WEEK) {
+                            return PackageType.WEEKLY
+                        } else if(packageType == MyPackageType.LIFETIME) {
+                            return PackageType.LIFETIME
+                        } else {
+                            return PackageType.UNKNOWN
+                        }
+                    }
+                }
+
+
+             
+            --- Subscription Act
+
+               -- For LifeTime ------
+
+                 SubscriptionSetter.makeMyProduct(
+                        this@NewForYearSubAct,
+                        MyPackageType.LIFETIME,
+                        { storeTransaction, customerInfo -> })
+
+               --- For Plan Subscription ----
+               
+               SubscriptionSetter.makeMySubs(
+                    this@NewForYearSubAct, MyPackageType.WEEK
+                ) { storeTransaction, customerInfo ->
+                }
+
+
+                    purchaseListener.postValue(false)
+
+            purchaseListener.observe(this@NewForYearSubAct) { purchase ->
+                //finish
+                ("Purchasing: $purchase").log()
+
+                if (purchase) {
+                    setResult(Activity.RESULT_OK)
+                    isSubscribedForAllGlobal(this@NewForYearSubAct, purchase)
+                    onBackPressed()
+                }
+            }
+
+
+
+            ---- Live All Produt Detail 
+
+                              SubscriptionSetter.liveMyInAppProducts.observe(this@NewForYearSubAct) { billingInAppProduct ->
+                                billingInAppProduct?.let { productsList ->
+                
+                                    if (!NetworkHelper.isOnline(this@NewForYearSubAct)) return@observe
+                
+                                    val lifetime =
+                                        productsList.find { it.packageType == MyPackageType.LIFETIME && it.productType == BillingClient.ProductType.INAPP }
+                                    lifetime?.let {
+                                        ("Sucsess INAPP Data: ${it.toGson()}").log("FATZ")
+                                        bind.lifetimebtn.visibility = View.VISIBLE
+                                        bind.lifetimepriceid.text = lifetime?.price
+                
+                                        if (!NetworkHelper.isOnline(this@NewForYearSubAct)) {
+                                            bind.lifetimepriceid.text = "₹2,000/-"
+                                        }
+                
+                //                        bind.lifetimetitalid.text = lifetime?.title
+                
+                //                        bind.lifetimetitalid.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+                //                        bind.lifetimetitalid.setSingleLine(true);
+                //                        bind.lifetimetitalid.setMarqueeRepeatLimit(-1); // -1 for infinite loop
+                //                        bind.lifetimetitalid.setSelected(true); // Required for the marquee effect to work
+                
+                //                       bind.tvpurid.text = lifetime?.description
+                //                       bind.tvpurid.text = "Lifetime Purchase"
+                                    }
+                                }
+                            }
+
+
+                            -------- Live Package Products Details. 
+                
+                                             SubscriptionSetter.livePackageProduct.observe(
+                                this@NewForYearSubAct,
+                                object : Observer<List<BillingProduct>?> {
+                                    @SuppressLint("SetTextI18n")
+                                    override fun onChanged(billingProducts: List<BillingProduct>?) {
+                                        billingProducts?.let { productsList ->
+                                            try {
+                                                if (!NetworkHelper.isOnline(this@NewForYearSubAct)) return
+                
+                                                val annualPlan =
+                                                    productsList.find { it.packageType == MyPackageType.ANNUAL }
+                                                val weekPlan =
+                                                    productsList.find { it.packageType == MyPackageType.WEEK }
+                                                val sixPlan =
+                                                    productsList.find { it.packageType == MyPackageType.SIX_MONTH }
+                
+                //                            bind.txtPurchaseMonth.text = monthPlan?.title
+                //                            bind.priserid.text = weekPlan?.title
+                //                            binding.thirdidyearly.text = sixPlan?.title
+                
+                                                bind.tvPriceyear.text = annualPlan?.price
+                                                bind.priserid.text = weekPlan?.price
+                                                bind.sixmonthjid.text = sixPlan?.price
+                
+                                                ("Micro Annual: " + annualPlan!!.amountmicros + " | Week: " + weekPlan!!.amountmicrostoPriceInt + " | 6 Month: " + sixPlan!!.amountmicrostoPriceInt).log(
+                                                    "FATZ"
+                                                )
+                
+                                                //todo: Revanue Cat Change divided
+                                                val annulemicro = (annualPlan?.amountmicros?.div(1000000))
+                                                val weekmicro = (weekPlan?.amountmicros?.div(1000000))
+                                                val sixmonthmicro = (sixPlan?.amountmicros?.div(1000000))
+                
+                                                bind.weeklytvlongtvid.text =
+                                                    "• ${getString(R.string.weeksubtv)} : ${weekPlan?.price}"
+                                                bind.monthlytvlongtvid.text =
+                                                    "• ${getString(R.string.sixmonthsubtv)} : ${sixPlan?.price}"
+                                                bind.yearlytvlongtvid.text =
+                                                    "• ${getString(R.string.yearsubtv)} : ${annualPlan?.price}"
+                
+                                                if (annulemicro != null) {
+                                                    bind.montbottomid.text =
+                                                        "${getString(R.string.permonth)} \n ₹${annulemicro / 12}/-"
+                                                }
+                                                if (sixmonthmicro != null) {
+                                                    bind.sixmonthbottom.text =
+                                                        "${getString(R.string.perweek)} \n ₹${sixmonthmicro / 24}/-"
+                                                }
+                
+                                                if (weekmicro != null) {
+                                                    bind.linabc.text = "₹${(weekmicro * 24)}/-"
+                                                }
+                                                if (annulemicro != null) {
+                                                    bind.linabcde.text = "₹${(annulemicro * 48)}/-"
+                                                }
+                
+                                                if (sixmonthmicro != null) {
+                                                    val yearperchantage =
+                                                        ((24 * weekmicro!!) - sixmonthmicro).toDouble()
+                                                    val sec = (yearperchantage * 100 / (24 * weekmicro)).toDouble()
+                
+                                                    ("Six: " + sec).log()
+                
+                                                    bind.sixmonthtvbg.text = "${(sec).roundToInt()}${
+                                                        getString(
+                                                            R.string.off
+                                                        )
+                                                    }"
+                                                }
+                
+                                                if (annulemicro != null) {
+                
+                                                    val yearperchantage =
+                                                        (52 * weekmicro!!) - annulemicro.toDouble()
+                                                    val sec = yearperchantage * 100 / (52 * weekmicro).toDouble()
+                
+                                                    ("Annul: " + sec).log()
+                
+                                                    bind.monthtvdid.text = "${(sec).roundToInt()}${
+                                                        getString(
+                                                            R.string.off
+                                                        )
+                                                    }"
+                                                }
+                
+                                                if (annulemicro != null) {
+                                                    ("Name: " + ((annulemicro * 100) / (annulemicro * 48))).log()
+                                                }
+                
+                                                val isFreeTrial = productsList.any { it.price == "Free" }
+                                                ("isFreeTrial $isFreeTrial").log()
+                
+                                                if (isFreeTrial) {
+                                                    App.putBoolean("isFreeTry", true)
+                                                    bind.startfreetrybtn.text =
+                                                        getSubscribeText(this@NewForYearSubAct, true)
+                                                } else {
+                                                    App.putBoolean("isFreeTry", false)
+                                                    bind.startfreetrybtn.text =
+                                                        getSubscribeText(this@NewForYearSubAct, false)
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                    }
+                                })
+
+
+
+
 // Connection Live Data
         
         class ConnectionLiveData(val context: Context) : LiveData<Boolean>() {
