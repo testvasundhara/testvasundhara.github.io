@@ -1,6 +1,61 @@
 # testvasundhara.github.io
 
 
+
+// WhatsApp Sticker add to Whatsapp
+
+
+     Android Menifest
+
+       <queries>
+
+        <!-- Explicit apps you know in advance about: -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
+
+
+
+      <provider
+            android:name=".foldername.whatsappsticker.StickerContentProvider"
+            android:authorities="${contentProviderAuthority}"
+            android:exported="true"
+            android:readPermission="com.whatsapp.sticker.READ"
+            android:grantUriPermissions="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_path" />
+        </provider>
+
+
+        provider_path.xml
+        
+    <paths xmlns:android="http://schemas.android.com/apk/res/android">
+        <external-path name="external_files" path="Android/data/com.name.photo.birthday.cake.quotes.frame.editor/files/StickerPacks/"/>
+    </paths>
+
+
+        ---- First Download a file path and give file path and identifire 
+        
+      public fun Activity.addStickerPackToWhatsAppKP(stickerPackIdentifier : String?, stickerPackName : String?) {
+            Log.e(TAG, "addStickerPackToWhatsAppKP: $stickerPackIdentifier")
+            val intent = Intent()
+            intent.setAction("com.whatsapp.intent.action.ENABLE_STICKER_PACK")
+            intent.putExtra("sticker_pack_id", stickerPackIdentifier)
+            intent.putExtra("sticker_pack_authority", BuildConfig.CONTENT_PROVIDER_AUTHORITY)
+            intent.putExtra("sticker_pack_name", stickerPackName)
+            try {
+                startActivityForResult(intent, ADD_PACK)
+            } catch (e : ActivityNotFoundException) {
+                Toast.makeText(this, "WhatsApp not installed.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+
 // Revanue Cat
 
              --Splace Screen 
