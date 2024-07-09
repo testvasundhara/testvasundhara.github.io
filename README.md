@@ -1,6 +1,28 @@
 # testvasundhara.github.io
 
 
+// Lassi For Pick Images & Videos
+
+     https://github.com/Mindinventory/Lassi-Android
+
+
+      if (checkStoragePermission()) {
+                    val intent = Lassi(this@HomeActivity)
+                        .with(LassiOption.GALLERY)
+                        .setMaxCount(100)
+                        .setGridSize(3)
+                        .setMinTime(3)
+                        .setMaxTime(300)
+                        .setMinFileSize(0)
+                        .setMaxFileSize(100000)
+                        .setMediaType(MediaType.VIDEO)
+                        .setPlaceHolder(com.lassi.R.drawable.ic_image_placeholder)
+                        .setErrorDrawable(com.lassi.R.drawable.ic_image_placeholder)
+                        .build()
+                    inAppVideoSelectionLauncher.launch(intent)
+                } else {
+                    toastLong(resources.getString(R.string.please_allow_permission_first_after_you_can_choose_images_or_videos))
+                }
 
 // WhatsApp Sticker add to Whatsapp
 
