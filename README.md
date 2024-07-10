@@ -1,9 +1,8 @@
 # testvasundhara.github.io
 
 
-// Crop and resize bitmap images resizebitmap cropbotmap
+// Crop and resize bitmap images resizebitmap cropbitmap
 
-     
          fun cropAndResizeBitmap(
              src: Bitmap?,
              startX: Int,
