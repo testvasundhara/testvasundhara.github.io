@@ -1,6 +1,107 @@
 # testvasundhara.github.io
 
 
+// Crop and resize bitmap images resizebitmap cropbotmap
+
+     
+         fun cropAndResizeBitmap(
+             src: Bitmap?,
+             startX: Int,
+             startY: Int,
+             targetWidth: Int,
+             targetHeight: Int
+         ): Bitmap? {
+             var startX = startX
+             var startY = startY
+             var targetWidth = targetWidth
+             var targetHeight = targetHeight
+             if (src == null || targetWidth <= 0 || targetHeight <= 0 || startX < 0 || startY < 0) {
+                 return null
+             }
+             val srcWidth = src.width
+             val srcHeight = src.height
+     
+             // Ensure crop area stays within source image bounds (avoid out-of-bounds issues)
+             startX = Math.max(0, startX)
+             startY = Math.max(0, startY)
+     
+             // Calculate the maximum possible crop width and height within the source image
+             val maxWidth = srcWidth - startX
+             val maxHeight = srcHeight - startY
+     
+             // Adjust target dimensions if they exceed source image boundaries
+             targetWidth = Math.min(targetWidth, maxWidth)
+             targetHeight = Math.min(targetHeight, maxHeight)
+     
+             // Calculate center point within the crop area
+             val centerX = startX + targetWidth / 2
+             val centerY = startY + targetHeight / 2
+     
+             // Calculate adjusted crop coordinates to maintain center based on target dimensions
+             var cropX = centerX - targetWidth / 2
+             var cropY = centerY - targetHeight / 2
+     
+             // Ensure final crop area stays within source image bounds
+             cropX = Math.max(0, cropX)
+             cropY = Math.max(0, cropY)
+     
+             // Calculate final crop width and height (might be smaller if source is smaller)
+             val cropWidth = Math.min(targetWidth, srcWidth - cropX)
+             val cropHeight = Math.min(targetHeight, srcHeight - cropY)
+     
+             // Create a new cropped bitmap
+             val croppedBitmap: Bitmap
+             croppedBitmap = try {
+                 Bitmap.createBitmap(src, cropX, cropY, cropWidth, cropHeight)
+             } catch (e: OutOfMemoryError) {
+                 Log.e("CropAndResizeBitmap", "Error cropping image: OutOfMemoryError", e)
+                 return null
+             }
+     
+             // Resize the cropped bitmap (optional)
+             var resizedBitmap: Bitmap? = null
+             if (targetWidth != cropWidth || targetHeight != cropHeight) {
+                 resizedBitmap = resizeBitmap(croppedBitmap, targetWidth, targetHeight)
+                 croppedBitmap.recycle() // Recycle croppedBitmap if resized version is needed
+             } else {
+                 resizedBitmap = croppedBitmap // No resizing needed, use the cropped bitmap directly
+             }
+             return resizedBitmap
+         }
+     
+         fun resizeBitmap(src: Bitmap?, targetWidth: Int, targetHeight: Int): Bitmap? {
+             return if (src == null || targetWidth <= 0 || targetHeight <= 0) {
+                 null
+             } else try {
+                 // Create a new resized bitmap with desired dimensions
+                 Bitmap.createScaledBitmap(src, targetWidth, targetHeight, true)
+             } catch (e: OutOfMemoryError) {
+                 Log.e("ResizeBitmap", "Error scaling image: OutOfMemoryError", e)
+                 null
+             }
+         }
+
+
+                val srcBitmap = BitmapFactory.decodeResource(
+                 resources,
+                 com.example.testproject.R.drawable.testforbigimg
+             )
+     
+             val targetWidth = 1440
+             val targetHeight = 2020
+     
+     // Resize and center crop the image
+             srcBitmap.width.log()
+     
+             val croppedBitmap = cropAndResizeBitmap(
+                 srcBitmap,
+                 srcBitmap.width / 2,
+                 srcBitmap.height / 2,
+                 targetWidth,
+                 targetHeight
+             )
+             
+
 // Lassi For Pick Images & Videos
 
      https://github.com/Mindinventory/Lassi-Android
