@@ -251,15 +251,46 @@
                         
                                 Purchases.configure(PurchasesConfiguration.Builder(context, REVENUECAT_GOOGLE_API).build())
                         
-                                Purchases.sharedInstance.updatedCustomerInfoListener = UpdatedCustomerInfoListener { info ->
-                                    currentSub = info.entitlements.active
-                                    productPurchaseListener.onRevenueCatPurchased(info)
-                                    "$currentSub".log("User Purchased List-->")
-                                    if (isSplash) {
-                                        isSplash = false
-                                        openNextScreen.invoke()
-                                    }
-                                }
+                               Purchases.sharedInstance.restorePurchases(object : ReceiveCustomerInfoCallback {
+            override fun onError(error: PurchasesError) {
+                ("is Splace AccureLife Time Plan Error: --- ${error.message}").log(
+                    "onRevenueCatPurchased"
+                )
+                isSubscribedForAllGlobal(context, false)
+
+                if (App.getBoolean("isForRevalueFirstTime") == false) {
+                    App.putBoolean("isForRevalueFirstTime", true)
+                    if (!context.isDestroyed) {
+                        ("Life Time Success: ---  ").log(
+                            "onRevenueCatPurchased"
+                        )
+                        openNextScreen.invoke()
+                    }
+                }
+            }
+
+            override fun onReceived(customerInfo: CustomerInfo) {
+                currentSub = customerInfo.entitlements.active
+                ("Life Time Success: --- $currentSub ").log(
+                    "onRevenueCatPurchased"
+                )
+
+                if (BuildConfig.DEBUG) isSubscribedForAllGlobal(context, false)
+                else isSubscribedForAllGlobal(context, true)
+
+                if (App.getBoolean("isForRevalueFirstTime") == false) {
+                    App.putBoolean("isForRevalueFirstTime", true)
+                    if (!context.isDestroyed) {
+                        ("Life Time Success: ---  ").log(
+                            "onRevenueCatPurchased"
+                        )
+                        productPurchaseListener.onRevenueCatPurchased(customerInfo)
+                        openNextScreen.invoke()
+                    }
+                }
+            }
+        })
+        
                         
                                 Purchases.sharedInstance.getOfferings(object : ReceiveOfferingsCallback {
                                     override fun onError(error: PurchasesError) {
@@ -358,32 +389,61 @@
                                 })
                             }
                         
-                            fun RestorePurchase(activity: Activity, onNext: () -> Unit) {
-                                Purchases.sharedInstance.restorePurchases(object : ReceiveCustomerInfoCallback {
-                                    override fun onError(error: PurchasesError) {
-                                        "onRevenueCatPurchased".log("Error--> $error")
-                                        activity.runOnUiThread {
-                                            Snackbar.make(
-                                                activity.findViewById(android.R.id.content),
-                                                activity.getString(R.string.nothing_to_restore),
-                                                Snackbar.LENGTH_SHORT
-                                            ).apply {
-                                                setActionTextColor(Color.WHITE)
-                                                show()
-                                            }
-                                        }
-                                        onNext()
-                                    }
-                        
-                                    override fun onReceived(customerInfo: CustomerInfo) {
-                                        ("restorePurchases $customerInfo").log("onRevenueCatPurchased")
-                                        onNext()
-                                        activity.setResult(Activity.RESULT_OK)
-                                        activity.finish()
-                                    }
-                                })
-                            }
-                        
+                                               fun RestorePurchase(activity: Activity, onNext: () -> Unit) {
+                  
+                          if (Purchases.isConfigured && activity.window != null && activity.windowManager != null) {
+                              Purchases.sharedInstance.restorePurchases(object : ReceiveCustomerInfoCallback {
+                                  override fun onError(error: PurchasesError) {
+                                      "onRevenueCatPurchased".log("Error--> $error")
+                                      activity.runOnUiThread {
+                                          Snackbar.make(
+                                              activity.findViewById(android.R.id.content),
+                                              activity.getString(R.string.nothing_to_restore),
+                                              Snackbar.LENGTH_SHORT
+                                          ).apply {
+                                              setActionTextColor(Color.WHITE)
+                                              show()
+                                          }
+                                      }
+                                      onNext()
+                                  }
+                  
+                                  override fun onReceived(customerInfo: CustomerInfo) {
+                                      ("restorePurchases $customerInfo").log("onRevenueCatPurchased")
+                                      if (customerInfo?.activeSubscriptions?.isNotEmpty() == true) {
+                                          isSubscribedForAllGlobal(activity, true)
+                                          onNext()
+                                          activity.setResult(Activity.RESULT_OK)
+                                          activity.onBackPressed()
+                                      } else {
+                                          if (customerInfo.entitlements?.active?.isNotEmpty() == true) {
+                                              isSubscribedForAllGlobal(activity, true)
+                                              onNext()
+                                              activity.setResult(Activity.RESULT_OK)
+                                              activity.onBackPressed()
+                                          } else {
+                                              onNext()
+                                              activity.runOnUiThread {
+                                                  Snackbar.make(
+                                                      activity.findViewById(android.R.id.content),
+                                                      activity.getString(R.string.nothing_to_restore),
+                                                      Snackbar.LENGTH_SHORT
+                                                  ).apply {
+                                                      setActionTextColor(Color.WHITE)
+                                                      show()
+                                                  }
+                                              }
+                                          }
+                                      }
+                                  }
+                              })
+                          } else {
+                              Purchases.configure(
+                                  PurchasesConfiguration.Builder(activity, BuildConfig.REVANUECAT_ID).build()
+                              )
+                          }
+                      }
+                      
                             fun purchaseMonth(context: Activity, onSuccess: (StoreTransaction, CustomerInfo) -> Unit) {
                         //        var purchaseProduct = allAvailablePackages.find { it.key == key }
                                 var product = revenueCatDataList.find { it.packageType == PackageType.MONTHLY }
