@@ -3,6 +3,7 @@
 
 // Ffmpeg Demo & Image to background ML Kit
 
+
     //ML KIT
     implementation(libs.segmentation.selfie)
     implementation ("com.google.mlkit:image-labeling:17.0.8")
@@ -472,6 +473,244 @@
                           }
                       }
                   }
+
+
+                  --- appUtils.kt
+                      
+    fun Context.toast(st : String) {
+        Toast.makeText(this, st, Toast.LENGTH_SHORT).show()
+    }
+    
+    fun Context.checkPermissions() : Boolean {
+        return if(Build.VERSION.SDK_INT >= 33) {
+            PermissionChecker.checkSelfPermission(
+                    this, Manifest.permission.READ_MEDIA_IMAGES
+            ) == PermissionChecker.PERMISSION_GRANTED
+        } else {
+            PermissionChecker.checkSelfPermission(
+                    this, Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PermissionChecker.PERMISSION_GRANTED && PermissionChecker.checkSelfPermission(
+                    this, Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PermissionChecker.PERMISSION_GRANTED
+        }
+    }
+    
+    fun Context.runOnUi(action:Runnable){
+        (this as Activity).runOnUiThread(action)
+    }
+    
+    val Any.toJson : String
+        get() = Gson().toJson(this)
+
+          --- utils.kt
+            
+            
+                      
+            
+            fun View.click(action : (View) -> Unit) = setOnClickListener {
+                action(it)
+            }
+            
+            fun processImageFromUri(context : Context, imageUri : Uri?) : Bitmap? {
+                try {
+                    // Get the content resolver
+                    val contentResolver : ContentResolver = context.contentResolver
+            
+                    // Open an input stream from the URI
+                    val inputStream = contentResolver.openInputStream(imageUri !!)
+            
+                    // Decode the stream into a bitmap
+                    val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            
+                    // Close the input stream
+                    inputStream !!.close()
+            
+                    // Process the bitmap with segmentation
+                    return originalBitmap
+                } catch (e : IOException) {
+                    // Handle potential exceptions (e.g., file not found, permission issues)
+                    Log.e("TAG", "Error loading image from URI: " + e.message)
+                }
+            
+                return null
+            }
+            //fun getMutableBitmapFromUri(context : Context, uri : Uri, config : Bitmap.Config) : Bitmap? {
+            //    var inputStream : InputStream? = null
+            //    return try {
+            //        inputStream = context.contentResolver.openInputStream(uri)
+            //        val options = BitmapFactory.Options()
+            //        options.inMutable = true
+            //        val bitmap = BitmapFactory.decodeStream(inputStream, null, options)
+            //        if(bitmap != null && bitmap.config != config) {
+            //            val mutableBitmap = bitmap.copy(config, true)
+            //            bitmap.recycle() // Recycle the original bitmap
+            //            mutableBitmap // Return the mutable bitmap with the desired configuration
+            //        } else {
+            //            bitmap // Return the original mutable bitmap
+            //        }
+            //    } catch (e : Exception) {
+            //        e.printStackTrace()
+            //        null
+            //    } finally {
+            //        inputStream?.close()
+            //    }
+            //}
+            
+            // Function to export the bitmap
+            fun View.exportBitmap(bitmap : Bitmap, quality : Int, filename : String) {
+                // Get the directory for the app's private pictures directory.
+            
+                var path = File(
+                        Environment.getExternalStoragePublicDirectory(
+                                Environment.DIRECTORY_PICTURES
+                        ).absolutePath + "/Bg Removal"
+                )
+                if(! path.exists()) {
+                    path.mkdir()
+                }
+                val file = File(path, filename)
+            //    if(! file.exists()) {
+            //        file.createNewFile()
+            //    }
+            
+                // Initialize a FileOutputStream object
+            //    val outputStream : OutputStream = FileOutputStream(file)
+            
+                tryWithLogging {
+                    // Compress the bitmap into the OutputStream
+            //        bitmap.compress(Bitmap.CompressFormat.PNG, quality, outputStream)
+            //        // Flushes the stream
+            //        outputStream.flush()
+            //        // Closes the stream
+            //        outputStream.close()
+                    saveBitmapWithTransparency(bitmap, file)
+                }
+            }
+            
+            suspend fun getSelfieSegmentBitmap(
+                source : Any,
+                context : Context,
+                response : (Bitmap, SEGMENT_RESULT) -> Unit,
+                process : (Int) -> Unit
+            ) {
+                var originalBitmap : Bitmap? = null
+                if(source is Bitmap) {
+                    originalBitmap = source
+                } else if(source is Uri) {
+                    originalBitmap = processImageFromUri(context, source)
+                } else {
+            
+                }
+                val options = SelfieSegmenterOptions.Builder().setDetectorMode(SelfieSegmenterOptions.SINGLE_IMAGE_MODE).build()
+                val segmenter = Segmentation.getClient(options)
+                segmenter.process(originalBitmap !!, 0).addOnSuccessListener { results ->
+                    // Task completed successfully
+                    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        response.invoke(startImageBuffer(results, originalBitmap, process) !!, SEGMENT_RESULT.SUCCESS)
+                    }
+            
+                }.addOnFailureListener { e ->
+                    response.invoke(originalBitmap, SEGMENT_RESULT.FAIL)
+                }
+            }
+            
+            private fun startImageBuffer(segmentationMask : SegmentationMask, bitmap : Bitmap, process : (Int) -> Unit) : Bitmap? {
+                val mask = segmentationMask.getBuffer()
+                val width = segmentationMask.getWidth()
+                val height = segmentationMask.getHeight()
+            
+            //        var segmentedImage = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                var res = height * width
+                var s=res/6
+                var p = 0
+                var per = 0
+                var segmentedImage = bitmap !!.copy(bitmap !!.config, true)
+                for (y in 0 until height) {
+                    for (x in 0 until width) {
+                        val foregroundConfidence : Float = mask.float
+                        p ++
+                        if(foregroundConfidence < 0.7f) {// < for Bg & > for person
+            
+                            var s = if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                var c = bitmap.getColor(x, y)
+                                Color.rgb(c !!.red(), c !!.green(), c !!.blue())
+                            } else {
+                                Color.argb(((1.0 - foregroundConfidence) * 255.0).toInt(), 0, 0, 0)
+                            }
+                            segmentedImage.setPixel(x, y, s)
+                        } else {
+                            segmentedImage.setPixel(x, y, Color.TRANSPARENT)
+                        }
+                    }
+            //        if((y*width)%s==0) {
+            //            if(((100 * p) / res) != per) {
+            //                per = ((100 * p) / res)
+            //                CoroutineScope(Dispatchers.Main).launch {
+            //                    process.invoke(per)
+            //                }
+            //            }
+            //        }
+                }
+                mask.rewind()
+                return segmentedImage
+            }
+            
+            
+            fun saveBitmapWithTransparency(erasedBitmap : Bitmap, outputFile : File) {
+                // Create a new bitmap with an alpha channel
+                val resultBitmap = Bitmap.createBitmap(erasedBitmap.width, erasedBitmap.height, Bitmap.Config.ARGB_8888)
+            
+                // Create a canvas with the result bitmap
+                val canvas = Canvas(resultBitmap)
+            
+                // Draw the erased bitmap onto the result bitmap's canvas
+                canvas.drawBitmap(erasedBitmap, 0f, 0f, null)
+            
+                // Save the result bitmap to a file
+                try {
+                    FileOutputStream(outputFile).use { out ->
+                        resultBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    }
+                    Log.d("SaveBitmap", "Bitmap saved successfully")
+                } catch (e : IOException) {
+                    e.printStackTrace()
+                    Log.e("SaveBitmap", "Error saving bitmap: ${e.message}")
+                }
+            }
+            
+            inline fun <T> tryWithLogging(block : () -> T) : T? {
+                return try {
+                    block()
+                } catch (e : Exception) {
+                    // Log the exception here
+                    Log.e("TAG", "tryWithLogging: Exception occurred: ${e.message}")
+                    null
+                }
+            }
+            
+            fun cropBitmap(bitmap : Bitmap, targetWidth : Int, targetHeight : Int) : Bitmap? {
+                // Calculate the dimensions for cropping
+                val width = bitmap.width
+                val height = bitmap.height
+            
+                // Calculate the final crop dimensions
+                val cropWidth = if(width >= targetWidth) targetWidth else width
+                val cropHeight = if(height >= targetHeight) targetHeight else height
+            
+                // Calculate the starting position for cropping
+                val x = (width - cropWidth) / 2
+                val y = (height - cropHeight) / 2
+            
+                // Create a cropped bitmap
+                return try {
+                    Bitmap.createBitmap(bitmap, x, y, cropWidth, cropHeight)
+                } catch (e : Exception) {
+                    // Handle any exceptions, such as OutOfMemoryError
+                    e.printStackTrace()
+                    null
+                }
+            }
+
                   
          ---  fileUtils.kt
                   
