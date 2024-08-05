@@ -1,6 +1,743 @@
 # testvasundhara.github.io
 
 
+// Ffmpeg Demo & Image to background ML Kit
+
+    //ML KIT
+    implementation(libs.segmentation.selfie)
+    implementation ("com.google.mlkit:image-labeling:17.0.8")
+         segmentation-selfie = { module = "com.google.mlkit:segmentation-selfie", version.ref = "segmentation-selfie" }segmentation-selfie = "16.0.0-beta5"
+         
+         //ffmpeg
+             implementation("com.arthenica:ffmpeg-kit-full-gpl:6.0-2")
+
+
+
+             // Ffmpege main command Class
+                  
+                               
+                  fun mp4toAvi(input : String, output : String) {
+                      val command = "-i \"$input\" \"$output\""
+                      FFmpegKit.executeAsync(command) {
+                          if(it.returnCode.value == ReturnCode.SUCCESS) {
+                              Log.d("FFmpeg", "Command execution succeeded.")
+                          } else if(it.returnCode.value == ReturnCode.CANCEL) {
+                              Log.d("FFmpeg", "Command execution cancelled.")
+                          } else {
+                              Log.d("FFmpeg", "Command execution failed with code: ${it.returnCode.value}")
+                          }
+                      }
+                  }
+                  
+                  fun Context.makeVideoFromImages(listOfImages : ArrayList<String>, output : String, dur : Int = 9, onGoPlay : (String) -> Unit) {
+                      var duration = dur
+                  
+                      if(dur < listOfImages.size * 2) {
+                          duration = (listOfImages.size * 2)
+                          Log.e("TAG", "hdbvhusbcvhjudsvb: $duration")
+                      }
+                      duration += listOfImages.size - 1
+                  //    if(listOfImages.size % 2 == 1) {
+                  //        for (i in 1..listOfImages.size - 1) {
+                  //            duration += 1
+                  //        }
+                  //    }
+                      var eachImageDur = duration.toFloat().div(listOfImages.size)
+                  
+                      Log.e("KP FFMPEG", "makeSingleImageVideo: $listOfImages")
+                      val folder = File(cacheDir, "FFMPEG Demo/temp")
+                      val scope = CoroutineScope(Dispatchers.IO)
+                      val countDownLatch = CountDownLatch(listOfImages.size)
+                      var progressDialog = ProgressDialog(this)
+                      progressDialog.apply {
+                          setTitle("Making Video")
+                          setCancelable(false)
+                          setMessage("0% Progressing")
+                      }
+                      progressDialog.show()
+                      var tmpTargetPercentage = 80
+                      var targetDuration = duration * 1000f
+                      var progressFile = 0f
+                      var mainProgress = 0f
+                      if(! folder.exists()) {
+                          if(folder.mkdirs()) {
+                              Log.e("KP FFMPEG", "1 makeSingleImageVideo: ${folder.absolutePath}")
+                  
+                              scope.launch {
+                                  listOfImages.forEachIndexed { index, path ->
+                                      launch {
+                                          makeSingleImageVideo(eachImageDur, path, index, folder, {
+                  
+                                              (this@makeVideoFromImages as Activity).runOnUiThread {
+                                                  if(! it) {
+                                                      toast("have an Issue!")
+                                                  }
+                                              }
+                  
+                                              countDownLatch.countDown() // Signal completion of this task
+                                          }, {
+                                              progressFile += it
+                                              mainProgress = (tmpTargetPercentage * progressFile) / targetDuration
+                                              (this@makeVideoFromImages as Activity).runOnUiThread {
+                                                  progressDialog.setMessage("${String.format("%.2f", mainProgress)} Progressing")
+                                              }
+                                          })
+                                      }
+                                  }
+                                  countDownLatch.await() // Wait for all tasks to complete
+                                  // After all makeSingleImageVideo calls are done
+                                  var tmpTargetPercentageFinal = 20
+                                  var targetDuration = duration * 1000.0f
+                                  var lastProgress = 0.0f
+                                  Log.e("TAG", "makeVideoFromImages: ------------------->lastProgress:$lastProgress")
+                                  makeVideo(listOfImages, folder, output, duration, { result, path ->
+                                      progressDialog.dismiss()
+                                      if(result) {
+                                          onGoPlay(path)
+                                      }
+                                  }, {
+                                      lastProgress += it
+                                      var progress = mainProgress + (tmpTargetPercentageFinal * lastProgress).div(targetDuration)
+                                      progressDialog.setMessage("${String.format("%.2f", progress)} Progressing")
+                  
+                                  })
+                              }
+                  
+                          }
+                          Log.e("KP FFMPEG", "exists makeSingleImageVideo: ${folder.exists()}")
+                  
+                      } else {
+                          Log.e("KP FFMPEG", "2 makeSingleImageVideo: ${folder.absolutePath}")
+                          scope.launch {
+                              listOfImages.forEachIndexed { index, path ->
+                                  launch {
+                                      makeSingleImageVideo(eachImageDur, path, index, folder, {
+                                          (this@makeVideoFromImages as Activity).runOnUiThread {
+                                              if(! it) {
+                                                  toast("have an Issue!")
+                                              }
+                                          }
+                                          countDownLatch.countDown() // Signal completion of this task
+                                      }, {
+                                          progressFile += it
+                                          mainProgress = (tmpTargetPercentage * progressFile) / targetDuration
+                                          (this@makeVideoFromImages as Activity).runOnUiThread {
+                                              progressDialog.setMessage("${String.format("%.2f", mainProgress)} Progressing")
+                                          }
+                                      })
+                                  }
+                              }
+                              countDownLatch.await() // Wait for all tasks to complete
+                              // After all makeSingleImageVideo calls are done
+                  
+                              var tmpTargetPercentageFinal = 20
+                              var targetDuration = duration * 1000.0f
+                              var lastProgress = 0.0f
+                              makeVideo(listOfImages, folder, output, duration, { result, path ->
+                                  progressDialog.dismiss()
+                                  if(result) {
+                                      onGoPlay(path)
+                                  }
+                              }, {
+                                  lastProgress += it
+                                  Log.e("TAG", "makeVideoFromImages: ---------targetDuration :$targetDuration ---------->lastProgress:$lastProgress")
+                  
+                                  var progress = mainProgress + (tmpTargetPercentageFinal * lastProgress).div(targetDuration)
+                                  progressDialog.setMessage("${String.format("%.2f", progress)} Progressing")
+                  
+                              })
+                          }
+                  
+                      }
+                  }
+                  
+                  
+                  /*fun Context.makeVideo(listOfVideos : List<String>, folder : File, output : String) {
+                      val fileListBuilder = StringBuilder()
+                  
+                      listOfVideos.forEachIndexed { index, s ->
+                          fileListBuilder.append("file '").append(File(folder, "vd$index.mp4").absolutePath).append("'\n")
+                      }
+                      // Write the list to a file
+                      val listFile = File(File(getExternalFilesDir(null), "FFMPEG Demo"), "file_list.txt")
+                      try {
+                          FileWriter(listFile).use { writer -> writer.write(fileListBuilder.toString()) }
+                      } catch (e : IOException) {
+                          e.printStackTrace()
+                          return
+                      }
+                      // Build the complete FFmpeg command
+                      val command = "-f concat -safe 0 -i \"${listFile.absolutePath}\" -c copy \"$output\""
+                  
+                      // Log the command for debugging
+                      Log.e("ffmpeg-kit ", "makeVideo: $command")
+                  
+                      // Execute the command asynchronously
+                      FFmpeg.executeAsync(command) { executionId, returnCode ->
+                          deleteImagesData()
+                  
+                          listOfVideos.forEachIndexed { index, _ ->
+                              val tempFile = File(folder, "vd$index.mp4")
+                              if(tempFile.exists()) {
+                                  tempFile.delete()
+                              }
+                          }
+                          Log.e("KP FFMPEG", "listFile: ${listFile.absolutePath} returnCode: $returnCode")
+                  
+                          if(returnCode == RETURN_CODE_SUCCESS) {
+                              val outputFile = File(output)
+                              if(outputFile.exists()) {
+                                  Log.d("FFmpeg KP", "Video created successfully at ${outputFile.absolutePath}")
+                              } else {
+                                  Log.d("FFmpeg KP", "Video creation failed.")
+                              }
+                              Log.d("FFmpeg KP", "Command execution succeeded.")
+                          } else if(returnCode == RETURN_CODE_CANCEL) {
+                              Log.d("FFmpeg KP", "Command execution cancelled.")
+                          } else {
+                              Log.d("FFmpeg KP", "Command execution failed with code: $returnCode")
+                          }
+                      }
+                  }*/
+                  
+                  
+                  /*
+                  fun Context.makeVideo(listOfImages : List<String>, folder : File, output : String) {
+                      // Build input files string
+                      val listPath = listOfImages.indices.joinToString(separator = " ") { index ->
+                          "-i \"${File(folder, "vd$index.mp4").absolutePath}\""
+                      }
+                  
+                  // Build filter_complex string
+                      val filterComplex = listOfImages.indices.joinToString(separator = ";") { index ->
+                          "[${index}:v]scale=720:1280,setdar=16/9[v$index]"
+                      } + "; " +
+                              listOfImages.indices.joinToString(separator = ";") { index ->
+                                  "[v$index]"
+                              } +
+                              "concat=n=${listOfImages.size}:v=1:a=0[v]"
+                  
+                  // Escape output path
+                      val quotedOutputPath = "\"${output}\""
+                  
+                  // Build the complete FFmpeg command
+                      val command = "$listPath -filter_complex \"$filterComplex\" -map \"[v]\" -r 25 -c:v libx264 -pix_fmt yuv420p -preset ultrafast $quotedOutputPath"
+                  
+                  // Log the command for debugging
+                      Log.e("ffmpeg-kit ", "makeVideo: $command")
+                  
+                      // Execute the command asynchronously
+                      FFmpeg.executeAsync(command) { executionId, returnCode ->
+                          deleteImagesData()
+                  
+                          listOfImages.forEachIndexed { index, s ->
+                              var tempFile = File(folder, "vd$index.mp4")
+                              tempFile.delete()
+                          }
+                          Log.e("KP FFMPEG", "3 listPath  returnCode: $returnCode  $listPath ")
+                  
+                          if(returnCode == RETURN_CODE_SUCCESS) {
+                              val outputFile = File(output)
+                              if(outputFile.exists()) {
+                                  Log.d("FFmpeg KP", "Video created successfully at ${outputFile.absolutePath}")
+                              } else {
+                                  Log.d("FFmpeg KP", "Video creation failed.")
+                              }
+                              Log.d("FFmpeg KP", "Command execution succeeded.")
+                          } else if(returnCode == RETURN_CODE_CANCEL) {
+                              Log.d("FFmpeg KP", "Command execution cancelled.")
+                          } else {
+                              Log.d("FFmpeg KP", "Command execution failed with code: $returnCode")
+                          }
+                      }
+                  }
+                  */
+                  
+                  fun Context.makeVideo1(listOfImages : List<String>, folder : File, output : String) {
+                      // Create a text file with paths of input videos
+                      val fileListPath = File(cacheDir, "filelist.txt")
+                      fileListPath.writeText(listOfImages.joinToString(separator = "\n") { index ->
+                          "file '$${File(folder, "vd$index.mp4").absolutePath}'"
+                      })
+                      // Build the FFmpeg command to concatenate videos using the file list
+                      val command = "ffmpeg -f concat -safe 0 -i ${fileListPath.absolutePath} -c copy \"$output\""
+                  
+                  // Execute the command asynchronously
+                      FFmpegKit.executeAsync(command) { session ->
+                          when (session.returnCode.value) {
+                              ReturnCode.SUCCESS -> {
+                                  Log.d("FFmpeg_", "Merge successful: ${session.output}")
+                              }
+                  
+                              ReturnCode.CANCEL -> {
+                                  Log.d("FFmpeg_", "Merge canceled")
+                              }
+                  
+                              else -> {
+                                  Log.e("FFmpeg_", "Merge failed: ${session.statistics}")
+                              }
+                          }
+                      }
+                  
+                  
+                  }
+                  
+                  fun Context.makeVideo(
+                      listOfImages : List<String>, folder : File, output : String, duration : Int, onComplate : (Boolean, String) -> Unit, progress : (Int) -> Unit
+                  ) {
+                      val transitionDuration = 1
+                      var pr = 0.0
+                      val inputOptions = listOfImages.indices.joinToString(separator = " ") { index ->
+                          "-y -i \"${File(folder, "vd$index.mp4").absolutePath}\""
+                      }
+                      var lastOffsetValue = 0
+                      val filerComplex = buildString {
+                          // Task 3 : Prepare FilterComplex For Video Ratio and bitrate/ fps etc
+                          if(listOfImages.size > 1) {
+                              for (i in 0 until listOfImages.size) {
+                                  append("[$i:v]settb=AVTB,setdar=720/1280,fps=25[v${i}];")
+                              }
+                              var totalVideoLength = 0
+                  
+                              // Task 4 : Prepare FilterComplex For Each Temp Video's Transitions
+                              for (i in 0 until listOfImages.size - 1) {
+                                  val currentVideoLength = duration.div(listOfImages.size)
+                                  totalVideoLength += currentVideoLength
+                                  if(i == 0) {
+                                      if(listOfImages.size - 1 == 1) {
+                                          lastOffsetValue = totalVideoLength - transitionDuration
+                                          val transaction =
+                                              "[v0][v1]xfade=transition=${transitionList.get((0..transitionList.size - 1).random())}:duration=$transitionDuration:offset=${lastOffsetValue}"
+                                          append(transaction)
+                                          Log.e("allVideosList", "makeVideo: idfhnn 1")
+                                      } else {
+                                          lastOffsetValue = totalVideoLength - transitionDuration
+                                          val transaction =
+                                              "[v0][v1]xfade=transition=${transitionList.get((0..transitionList.size - 1).random())}:duration=$transitionDuration:offset=${lastOffsetValue}[f0]; "
+                                          append(transaction)
+                                          Log.e("allVideosList", "makeVideo: idfhnn 2")
+                                      }
+                                  } else if(i == listOfImages.lastIndex - 1) {
+                                      lastOffsetValue = totalVideoLength - ((i + 1) * transitionDuration)
+                                      val transaction =
+                                          "[f${i - 1}][v${i + 1}]xfade=transition=${transitionList.get((0..transitionList.size - 1).random())}:duration=$transitionDuration:offset=${lastOffsetValue}"
+                                      append(transaction)
+                                      Log.e("allVideosList", "makeVideo: idfhnn 3")
+                                  } else {
+                                      lastOffsetValue = totalVideoLength - ((i + 1) * transitionDuration)
+                                      val transaction =
+                                          "[f${i - 1}][v${i + 1}]xfade=transition=${transitionList.get((0..transitionList.size - 1).random())}:duration=$transitionDuration:offset=${lastOffsetValue}[f$i]; "
+                                      append(transaction)
+                                      Log.e("allVideosList", "makeVideo: idfhnn 4")
+                                  }
+                                  Log.e("TAG", "makeVideo: lastOffsetValue---> $lastOffsetValue  $currentVideoLength $totalVideoLength")
+                              }
+                          }
+                      }
+                      val quotedOutputPath = "\"${output}\""
+                  
+                      var command = ""
+                      if(filerComplex.isEmpty()) {
+                          command = "-y $inputOptions -c:v copy $quotedOutputPath"
+                      } else {
+                          command =
+                              "$inputOptions" + " -filter_complex" + " \"${filerComplex}\"" + " -r 25" + " -c:v libx264" + " -pix_fmt yuv420p" + " -preset ultrafast" + " $quotedOutputPath"
+                      }
+                      Log.e("ffmpeg-kit ", "makeVideo: $command")
+                  
+                      /**
+                       *     val command = "-y -i \"/data/user/0/com.kp.demo.bgremoval/cache/FFMPEG Demo/temp/vd0.mp4\" -i \"/data/user/0/com.kp.demo.bgremoval/cache/FFMPEG Demo/temp/vd1.mp4\" -filter_complex \"[0:v]scale=720:1280[v0];[1:v]scale=720:1280[v1];[v0][v1]xfade=transition=fade:duration=0.5:offset=0.0[vout]\" -map \"[vout]\" \"/storage/emulated/0/Pictures/FFMPEG Demo/30_07_2024__16_54_57.mp4\""
+                       * */
+                  // Execute the command asynchronously
+                      FFmpegKit.executeAsync(command, {
+                          deleteImagesData()
+                  //        listOfImages.forEachIndexed { index, s ->
+                  //            var tempFile = File(folder, "vd$index.mp4")
+                  //            tempFile.delete()
+                  //        }
+                          Log.e("KP FFMPEG", "3 listPath  returnCode: ${it.returnCode}  ")
+                  
+                  
+                          if(it.returnCode.value == ReturnCode.SUCCESS) {
+                              val outputFile = File(output)
+                              this.runOnUi {
+                                  onComplate(true, outputFile.absolutePath)
+                                  toast("Video created successfully")
+                              }
+                              if(outputFile.exists()) {
+                  
+                                  Log.d("FFmpeg KP", "Video created successfully at ${outputFile.absolutePath}")
+                              } else {
+                                  Log.d("FFmpeg KP", "Video creation failed.")
+                              }
+                              Log.d("FFmpeg KP", "Command execution succeeded.")
+                          } else if(it.returnCode.value == ReturnCode.CANCEL) {
+                              this.runOnUi {
+                                  onComplate(false, "")
+                                  toast("Video creation cancelled.")
+                              }
+                              Log.d("FFmpeg KP", "Command execution cancelled.")
+                          } else {
+                              this.runOnUi {
+                                  onComplate(false, "")
+                                  toast("Video creation failed.")
+                              }
+                              Log.d("FFmpeg KP", "Command execution failed with code: ${it.returnCode.value}")
+                          }
+                      }, {
+                  
+                      }, {
+                          var progressTime = it.time - pr
+                          pr = it.time
+                          this.runOnUi {
+                              progress(progressTime.toInt())
+                          }
+                          Log.e("FFmpeg KP", "makeVideo: Progress -> ${it.toJson}")
+                      })
+                  }
+                  
+                  suspend fun makeSingleImageVideo(
+                      eachImageDur : Float, imagePath : String, index : Int, folder : File, onComplete : (Boolean) -> Unit, progress : (Int) -> Unit
+                  ) {
+                      var pr = 0.0
+                      var resizeImagePath = File(folder, "tmp_image_$index.jpg")
+                      // Task 1 : Making temp Images for next Temp Video Operations
+                      var resizeCommand =
+                          "-y" + " -i \"${imagePath}\"" + " -vf \"[0:v]split=2[blur][vid];" + " [blur]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,boxblur=luma_radius=min(h\\,w)/5:luma_power=1:chroma_radius=min(cw\\,ch)/5:chroma_power=1[bg];" + " [vid]scale=720:1280:force_original_aspect_ratio=decrease[ov];" + " [bg][ov]overlay='(main_w-overlay_w)/2:(main_h-overlay_h)/2'\"" + " -preset ultrafast" + " \"${resizeImagePath}\""
+                  
+                      FFmpegKit.executeAsync(resizeCommand, {
+                          if(ReturnCode.isSuccess(it.returnCode)) {
+                              var tempFile = File(folder, "vd$index.mp4")
+                  
+                              // Task 2 : Making temp Video for Final Video
+                              var command =
+                  //        "-y" + " -framerate 30" + " -i \"$imagePath\"" + " -t ${eachImageDur.toString()} -c:v libx264 -pix_fmt yuv420p -preset ultrafast \"${tempFile.absolutePath}\""
+                                  "-y -loop 1" + " -t $eachImageDur" + " -framerate 24" + " -i \"${resizeImagePath}\"" + " -c:v libx264" + " -pix_fmt yuv420p" + " -preset ultrafast" + " \"${tempFile.absolutePath}\""
+                  
+                              Log.e("KP FFMPEG", "FFMPEG Command: $command")
+                  
+                              FFmpegKit.executeAsync(command, {
+                                  Log.e("ffmpeg-kit ", "makeSingleImageVideo:${tempFile.absolutePath}  ${it.returnCode.value == ReturnCode.SUCCESS} --> ${it.returnCode.value}")
+                                  onComplete(ReturnCode.isSuccess(it.returnCode))
+                              }, {
+                  
+                              }, {
+                                  var progressTime = it.time - pr
+                                  pr = it.time
+                                  progress(progressTime.toInt())
+                                  Log.d("TAG", "makeSingleImageVideo: progress -->$index ${it.toJson}")
+                              })
+                          } else {
+                              Log.d("TAG", "resize Image :FAILED $$resizeImagePath ====>")
+                  
+                          }
+                      }, {}, {
+                          Log.e("TAG", "resize Image : status --> ${it.toJson}")
+                      })
+                  
+                  
+                  }
+                  
+                  fun Context.executeFFmpegCommand(input : File, output : String, durationPerImage : Int = 5) {
+                      // Wrap paths with quotes
+                      val quotedInputPath = "\"${input.absolutePath}\""
+                      val quotedOutputPath = "\"${output}\""
+                  
+                      // Construct the command string
+                  //    val command = "-f concat -safe 0 -i $quotedInputPath -vf fps=1/$durationPerImage -c:v libx264 -pix_fmt yuv420p -r 1/$durationPerImage $quotedOutputPath"
+                  //    val command = "-f concat -safe 0 -i $quotedInputPath -vf \"scale=ceil(iw/2)*2:ceil(ih/2)*2\" -c:v libx264 -r 30 -pix_fmt yuv420p $quotedOutputPath"
+                  
+                  //        val command = "-f concat -safe 0 -i $quotedInputPath -vf \"scale=720:1280,setsar=1\" -framerate 1 -t 00:00:05 -c:v libx264 -r 24 -pix_fmt yuv420p $quotedOutputPath"
+                      val command = "-f concat -safe 0 -i $quotedInputPath -vf \"scale=720:1280,setsar=1\" -t 5 -framerate 25 -c:v libx264 -pix_fmt yuv420p $quotedOutputPath"
+                  
+                  
+                      Log.d("FFmpeg", "Command: $command")
+                  
+                      // Execute the command asynchronously
+                      FFmpegKit.executeAsync(command) {
+                          deleteImagesData()
+                  
+                          if(it.returnCode.value == ReturnCode.SUCCESS) {
+                              val outputFile = File(output)
+                              if(outputFile.exists()) {
+                                  Log.d("FFmpeg KP", "Video created successfully at ${outputFile.absolutePath}")
+                              } else {
+                                  Log.d("FFmpeg KP", "Video creation failed.")
+                              }
+                              Log.d("FFmpeg KP", "Command execution succeeded.")
+                          } else if(it.returnCode.value == ReturnCode.CANCEL) {
+                              Log.d("FFmpeg KP", "Command execution cancelled.")
+                          } else {
+                              Log.d("FFmpeg KP", "Command execution failed with code: ${it.returnCode.value}")
+                          }
+                      }
+                  }
+                  
+         ---  fileUtils.kt
+                  
+                           
+                  fun getFilePathFromUri(context : Context, uri : Uri) : String? {
+                      var filePath : String? = null
+                  
+                      // DocumentProvider
+                      if(DocumentsContract.isDocumentUri(context, uri)) {
+                          when {
+                              isExternalStorageDocument(uri) -> {
+                                  val docId = DocumentsContract.getDocumentId(uri)
+                                  val split = docId.split(":").toTypedArray()
+                                  val type = split[0]
+                                  if("primary".equals(type, ignoreCase = true)) {
+                                      filePath = Environment.getExternalStorageDirectory().toString() + "/" + split[1]
+                                  } else {
+                                      // Handle non-primary volumes
+                                      val externalMediaDirs = context.externalMediaDirs
+                                      for (file in externalMediaDirs) {
+                                          if(file.absolutePath.contains(type)) {
+                                              filePath = file.absolutePath.substringBefore("/Android") + "/" + split[1]
+                                              break
+                                          }
+                                      }
+                                  }
+                              }
+                  
+                              isDownloadsDocument(uri) -> {
+                                  val id = DocumentsContract.getDocumentId(uri)
+                                  if(id.startsWith("raw:")) {
+                                      filePath = id.removePrefix("raw:")
+                                  } else {
+                                      val contentUri = ContentUris.withAppendedId(
+                                              Uri.parse("content://downloads/public_downloads"), id.toLongOrNull() ?: return null
+                                      )
+                                      filePath = getDataColumn(context, contentUri, null, null)
+                                  }
+                              }
+                  
+                              isMediaDocument(uri) -> {
+                                  val docId = DocumentsContract.getDocumentId(uri)
+                                  val split = docId.split(":").toTypedArray()
+                                  val type = split[0]
+                                  val contentUri : Uri = when (type) {
+                                      "image" -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                                      "video" -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                                      "audio" -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                                      else -> return null
+                                  }
+                                  val selection = "_id=?"
+                                  val selectionArgs = arrayOf(split[1])
+                                  filePath = getDataColumn(context, contentUri, selection, selectionArgs)
+                              }
+                          }
+                      }
+                      // MediaStore (and general)
+                      else if("content".equals(uri.scheme, ignoreCase = true)) {
+                          filePath = getDataColumn(context, uri, null, null)
+                      }
+                      // File
+                      else if("file".equals(uri.scheme, ignoreCase = true)) {
+                          filePath = uri.path
+                      }
+                  
+                      return filePath
+                  }
+                  
+                  private fun isExternalStorageDocument(uri : Uri) : Boolean {
+                      return "com.android.externalstorage.documents" == uri.authority
+                  }
+                  
+                  private fun isDownloadsDocument(uri : Uri) : Boolean {
+                      return "com.android.providers.downloads.documents" == uri.authority
+                  }
+                  
+                  private fun isMediaDocument(uri : Uri) : Boolean {
+                      return "com.android.providers.media.documents" == uri.authority
+                  }
+                  
+                  fun Context.deleteImagesData() {
+                      File(File(getExternalFilesDir(null), "FFMPEG Demo"), "images.txt").delete()
+                      File(File(getExternalFilesDir(null), "FFMPEG Demo"), "file_list.txt").delete()
+                      File(filesDir, "filelist.txt").delete()
+                  }
+                  
+                  private fun getDataColumn(context : Context, uri : Uri, selection : String?, selectionArgs : Array<String>?) : String? {
+                      var cursor : Cursor? = null
+                      val column = "_data"
+                      val projection = arrayOf(column)
+                      try {
+                          cursor = context.contentResolver.query(uri, projection, selection, selectionArgs, null)
+                          if(cursor != null && cursor.moveToFirst()) {
+                              val columnIndex = cursor.getColumnIndexOrThrow(column)
+                              return cursor.getString(columnIndex)
+                          }
+                      } finally {
+                          cursor?.close()
+                      }
+                      return null
+                  }
+                  
+                  val getRandomName : String
+                      get() = SimpleDateFormat("dd_MM_yyyy__HH_mm_ss", Locale.getDefault()).format(Date())
+                  
+                  //fun getTmpImagePath() : String {
+                  //    var name= (20..5000).random().toString()+".jpg"
+                  //File()
+                  //
+                  //}
+                  
+                  fun prepareFileList(filePaths : List<String>, context : Context, folder : File) : File {
+                      val fileListContent = filePaths.indices.joinToString("\n") { index ->
+                          "file '${File(folder, "vd$index.mp4").absolutePath}'"
+                      }
+                      val fileList = File(context.filesDir, "filelist.txt")
+                      fileList.writeText(fileListContent)
+                      return fileList
+                  }
+                  
+                  fun Context.getBitmapFromUri( uri: Uri): Bitmap? {
+                      return try {
+                          val inputStream = contentResolver.openInputStream(uri)
+                          inputStream?.use {
+                              BitmapFactory.Options().run {
+                                  inPreferredConfig = Bitmap.Config.ARGB_8888 // Ensure high-quality bitmap
+                                  BitmapFactory.decodeStream(it, null, this)
+                              }
+                          } ?: run {
+                              // Log or handle the case where inputStream is null
+                              Log.e("TAG", "getBitmapFromUri: ee", )
+                              null
+                          }
+                      } catch (e: Exception) {
+                          Log.e("TAG", "getBitmapFromUri: $e", )
+                          e.printStackTrace() // Log error
+                          null
+                      }
+                  }
+
+         --- MLKiitUtil.kt
+                           
+                  fun Activity.bgDetection(uri : Uri, info : (String) -> Unit) {
+                  //        binding.imgState.setImageURI(uri)
+                      var progressDialog = ProgressDialog(this)
+                      progressDialog.apply {
+                          setTitle("Objects Find")
+                          setCancelable(false)
+                          setMessage("0% Progressing")
+                      }
+                      if(! isFinishing) {
+                          progressDialog.show()
+                      }
+                      var process = - 1
+                  
+                  
+                      CoroutineScope(Dispatchers.IO).launch {
+                          var mainProgress = 0
+                          getSelfieSegmentBitmap(uri, this@bgDetection, { selfie, segmentResult ->
+                              takeLabels(selfie) { process, info ->
+                                  mainProgress = process
+                                  CoroutineScope(Dispatchers.Main).launch {
+                                      progressDialog.setMessage("$mainProgress% Progressing")
+                                      info(info)
+                                      Handler(Looper.getMainLooper()).postDelayed({
+                                          if (!isFinishing) {
+                                              progressDialog.dismiss()
+                                          }
+                                      }, 1200)
+                                  }
+                              }
+                          }, { it ->
+                              if (it != process) {
+                                  process = it
+                                  Log.e("TAG", "bgDetection: -progress-> $process")
+                                  CoroutineScope(Dispatchers.Main).launch {
+                                      progressDialog.setMessage("$process% Progressing")
+                                  }
+                              }
+                          })
+                      }
+                  
+                  }
+                  
+                  fun Activity.takeLabels(bitmap : Bitmap?, process : (Int, String) -> Unit = { _, o -> }) {
+                      val image : InputImage
+                      try {
+                          image = InputImage.fromBitmap(bitmap !!, 0)
+                          val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
+                  
+                  
+                          labeler.process(image).addOnSuccessListener {
+                              Log.e("ML KIT Scope", "takeLabels: Success!")
+                              var info = ""
+                              it.forEachIndexed { index, information ->
+                                  info += "${index + 1}:\t${information.text}\n"
+                                  Log.e("ML KIT Scope", "takeLabels: lebel ${information.index}:\n\t${information.text}\n\t${information.confidence}")
+                              }
+                              process(99, info)
+                  
+                          }.addOnFailureListener {
+                              Log.e("ML KIT Scope", "takeLabels: Fail :${it.message}")
+                          }
+                  
+                      } catch (e : IOException) {
+                          e.printStackTrace()
+                      }
+                  
+                  
+                  }
+
+              ---- const.kt
+
+                                
+                  object Constant {
+                  
+                      var VIDEO_PATH = "video_path"
+                  
+                  
+                      var transitionList = listOf(
+                              "fade",
+                              "fadeblack",
+                              "fadewhite",
+                              "distance",
+                              "wipeleft",
+                              "wiperight",
+                              "wipeup",
+                              "wipedown",
+                              "slideleft",
+                              "slideright",
+                              "slidedown",
+                              "smoothleft",
+                              "smoothright",
+                              "smoothup",
+                              "smoothdown",
+                              "circlecrop",
+                              "rectcrop",
+                              "circleclose",
+                              "circleopen",
+                              "horzclose",
+                              "horzopen",
+                              "vertclose",
+                              "vertopen",
+                              "diagbl",
+                              "diagbr",
+                              "diagtl",
+                              "diagtr",
+                              "hlslice",
+                              "hrslice",
+                              "vuslice",
+                              "vdslice",
+                              "dissolve",
+                              "pixelize",
+                              "radial",
+                              "hblur",
+                              "wipetl",
+                              "wipetr",
+                              "wipebl",
+                              "wipebr",
+                              "squeezev",
+                              "squeezeh",
+                              "zoomin",
+                      )
+                  }
+
+
 // Crop and resize bitmap images resizebitmap cropbitmap
 
          fun cropAndResizeBitmap(
@@ -180,216 +917,284 @@
 
 // Revanue Cat
 
-             --Splace Screen 
-
-                                 RevenueCatHelper.revenueCateInit(
-                            this, "abcvddswd", "Current Plan",
-                            object : ProductPurchaseListener {
-                                override fun onPurchase(message: String) {
-                                    message.messageLog()
-                                }
-                
-                                override fun onPurchased(purchases: Purchase) {
-                                }
-                
-                                override fun onRevenueCatPurchased(purchases: CustomerInfo) {
-                //                        if(purchases.activeSubscriptions)
-                                    Log.e("TAG", "onRevenueCatPurchased: ${purchases.activeSubscriptions}")
-                                    Log.e("TAG", "onRevenueCatPurchased: ${purchases.entitlements.active}")
-                
-                                    val data = purchases.entitlements.active.toString()
-                                    val isActive: Boolean = extractBooleanValue(data, "isActive")
-                
-                                    ("isActive: $isActive").log("onRevenueCatPurchased")
-                
-                                    SubsSharedFile(this@SplashActivity).isSubscriber =
-                                        purchases.activeSubscriptions.isNotEmpty()
-                                    subsSharedFile!!.purchaseProduct = purchases.toGson()
-                                    subsSharedFile!!.purchaseProduct.logPurchase()
-                
-                                    val isSubscriber = isActive
-                                    isSubscribeFun(isSubscriber)
-                                }
-                
-                                override fun onPurchaseFail(errorMessage: String) {
-                
-                                }
-                            }
-                        ) {
-                            runOnUiThread {
-                                if (isFirstTime) {
-                                    isFirstTime = false
-                                    ("Time 2222222").log("TIMECHECK")
-                                    gotoLoadApp()
-                                }
-                            }
-                        }
+            --Splace Screen 
+            
+           RevenueCatHelper.revenueCateInit(this,
+                     BuildConfig.REVANUECAT_ID,
+                     "Current Plan",
+                     object : ProductPurchaseListener {
+                         override fun onPurchase(message: String) {
+                             message.messageLog()
+                         }
+         
+                         override fun onPurchased(purchase: Purchase) {
+                         }
+         
+                         override fun onRevenueCatPurchased(purchases: CustomerInfo) {
+         //                        if(purchases.activeSubscriptions)
+                             Log.e("TAG", "onRevenueCatPurchased: ${purchases.activeSubscriptions}")
+                             Log.e("TAG", "onRevenueCatPurchased: ${purchases.entitlements.active}")
+         
+                             val data = purchases.entitlements.active.toString()
+                             val isActive: Boolean = extractBooleanValue(data, "isActive")
+                             ("isActive: $isActive").log("onRevenueCatPurchased")
+                             SubsSharedFile(this@SplashActivity).isSubscriber =
+                                 purchases.activeSubscriptions.isNotEmpty()
+                             subsSharedFile?.purchaseProduct = purchases.toGson()
+                             subsSharedFile?.purchaseProduct?.logPurchase()
+                         }
+         
+                         override fun onPurchaseFail(errorMessage: String) {
+         
+                         }
+                     }) {
+                     runOnUiThread {
+                         if (isFirstTime) {
+                             isFirstTime = false
+                             ("Time 2222222").log("TIMECHECK")
+                             gotoLoadApp()
+                         }
+                     }
+                 }
 
 
 
            ---- Revanue Cat Class
-
-                                   object RevenueCatHelper {
-                            var currentSub: Map<String, EntitlementInfo>? = null
-                            var isSplash = true
-                        
-                            var liverevenuecatedatalist = MutableLiveData<List<RevenueCatData>>()
-                            var revenueCatDataList = ArrayList<RevenueCatData>()
-                            var allAvailablePackages = ArrayList<MyOffer>()
-                            var currentUserPackage = MyOffer()
-                            fun revenueCateInit(
-                                context: Context,
-                                REVENUECAT_GOOGLE_API: String,
-                                abTestPackage: String,
-                                productPurchaseListener: ProductPurchaseListener,
-                                openNextScreen: () -> Unit
-                            ) {
-                                StaticParam.isRevenueCate = true
-                                StaticParam.productPurchaseListener = productPurchaseListener
-                        
-                                Purchases.debugLogsEnabled = false
-                        
-                                Purchases.configure(PurchasesConfiguration.Builder(context, REVENUECAT_GOOGLE_API).build())
-                        
-                               Purchases.sharedInstance.restorePurchases(object : ReceiveCustomerInfoCallback {
-            override fun onError(error: PurchasesError) {
-                ("is Splace AccureLife Time Plan Error: --- ${error.message}").log(
-                    "onRevenueCatPurchased"
-                )
-                isSubscribedForAllGlobal(context, false)
-
-                if (App.getBoolean("isForRevalueFirstTime") == false) {
-                    App.putBoolean("isForRevalueFirstTime", true)
-                    if (!context.isDestroyed) {
-                        ("Life Time Success: ---  ").log(
-                            "onRevenueCatPurchased"
-                        )
-                        openNextScreen.invoke()
-                    }
-                }
-            }
-
-            override fun onReceived(customerInfo: CustomerInfo) {
-                currentSub = customerInfo.entitlements.active
-                ("Life Time Success: --- $currentSub ").log(
-                    "onRevenueCatPurchased"
-                )
-
-                if (BuildConfig.DEBUG) isSubscribedForAllGlobal(context, false)
-                else isSubscribedForAllGlobal(context, true)
-
-                if (App.getBoolean("isForRevalueFirstTime") == false) {
-                    App.putBoolean("isForRevalueFirstTime", true)
-                    if (!context.isDestroyed) {
-                        ("Life Time Success: ---  ").log(
-                            "onRevenueCatPurchased"
-                        )
-                        productPurchaseListener.onRevenueCatPurchased(customerInfo)
-                        openNextScreen.invoke()
-                    }
-                }
-            }
-        })
-        
-                        
-                                Purchases.sharedInstance.getOfferings(object : ReceiveOfferingsCallback {
-                                    override fun onError(error: PurchasesError) {
-                                        "${error}".log("Purchase List error-->")
-                                    }
-                        
-                                    override fun onReceived(offerings: com.revenuecat.purchases.Offerings) {
-                                        offerings.all.forEach { (s, offering) ->
-                                            var offers = MyOffer(s, offering.availablePackages)
-                                            allAvailablePackages.add(offers)
-                                        }
-                                        allAvailablePackages.forEach { myoffer ->
-                        
-                                            myoffer.packages.forEach {
-                                                var freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
-                                                    it.freePhase?.billingPeriod
-                                                }
-                                                revenueCatDataList.add(
-                                                    RevenueCatData(
-                                                        it.product.id,
-                                                        myoffer.key,
-                                                        it.packageType,
-                                                        it.product.price.formatted,
-                                                        it.product.price.amountMicros,
-                                                        it.product.period.toString(),
-                                                        FreeTrils(
-                                                            freeTrial?.value,
-                                                            freeTrial?.unit.toString(),
-                                                            freeTrial?.iso8601.toString()
-                                                        ),
-                                                        it
-                                                    )
-                                                )
-                                            }
-                                        }
-                        
-                                        allAvailablePackages.find { it.key == abTestPackage }?.let {
-                                            currentUserPackage = it
-                                        }
-                                        liveMyPlan.postValue(currentUserPackage.key)
-                                        currentUserPackage?.packages?.forEach {
-                                            var freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
-                                                it.freePhase?.billingPeriod
-                                            }
-                                            revenueCatDataList.add(
-                                                RevenueCatData(
-                                                    it.product.id,
-                                                    currentUserPackage.key,
-                                                    it.packageType,
-                                                    it.product.price.formatted,
-                                                    it.product.price.amountMicros,
-                                                    it.product.period.toString(),
-                                                    FreeTrils(
-                                                        freeTrial?.value,
-                                                        freeTrial?.unit.toString(),
-                                                        freeTrial?.iso8601.toString()
-                                                    ),
-                                                    it
-                                                )
-                                            )
-                                        }
-                                        var myProducts = ArrayList<BillingProduct>()
-                        
-                                        revenueCatDataList.forEach {
-                                            var billingProduct = BillingProduct()
-                                            billingProduct.id = it.id
-                                            billingProduct.title = it.packageName
-                        
-                                            when (it.packageType) {
-                                                PackageType.MONTHLY -> {
-                                                    billingProduct.packageType = MyPackageType.MONTH
-                                                }
-                        
-                                                PackageType.ANNUAL -> {
-                                                    billingProduct.packageType = MyPackageType.ANNUAL
-                                                }
-                        
-                                                PackageType.WEEKLY -> {
-                                                    billingProduct.packageType = MyPackageType.WEEK
-                                                }
-                        
-                                                else -> {
-                                                    billingProduct.packageType = MyPackageType.SIX_MONTH
-                                                }
-                        
-                                            }
-                                            billingProduct.price = it.price
-                                            billingProduct.period = it.period
-                                            billingProduct.amountmicros = it.amountmicros
-                                            myProducts.add(billingProduct)
-                                        }
-                        
-                                        SubscriptionSetter.livePackageProduct.postValue(myProducts)
-                                        liverevenuecatedatalist.postValue(revenueCatDataList)
-                                    }
-                                })
-                            }
-                        
-                                               fun RestorePurchase(activity: Activity, onNext: () -> Unit) {
+                  
+                                                 object RevenueCatHelper {
+                      var currentSub: Map<String, EntitlementInfo>? = null
+                      var isSplash = true
+                  
+                      var liverevenuecatedatalist = MutableLiveData<List<RevenueCatData>>()
+                      var revenueCatDataList = ArrayList<RevenueCatData>()
+                      var allAvailablePackages = ArrayList<MyOffer>()
+                      var currentUserPackage = MyOffer()
+                  
+                      private fun saveJsonToFile(jsonString: String) {
+                          val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                          val file = File(path, "ravanuecat.json")
+                          try {
+                              path.mkdirs()
+                              val fos = FileOutputStream(file)
+                              fos.write(jsonString.toByteArray())
+                              fos.close()
+                  //                Toast.makeText(this, "JSON saved to " + file.path, Toast.LENGTH_LONG).show()
+                          } catch (e: IOException) {
+                              e.printStackTrace()
+                  //                Toast.makeText(this, "Error saving JSON", Toast.LENGTH_LONG).show()
+                          }
+                      }
+                  
+                      fun revenueCateInit(
+                          context: Activity,
+                          REVENUECAT_GOOGLE_API: String = BuildConfig.REVANUECAT_ID,
+                          abTestPackage: String,
+                          productPurchaseListener: ProductPurchaseListener,
+                          openNextScreen: () -> Unit
+                      ) {
+                          StaticParam.isRevenueCate = true
+                          StaticParam.productPurchaseListener = productPurchaseListener
+                  
+                          var isSubscribe = false
+                  
+                          Purchases.debugLogsEnabled = false
+                          Purchases.configure(
+                              PurchasesConfiguration.Builder(context, REVENUECAT_GOOGLE_API).appUserID(null).build()
+                          )
+                          ("Heree innerrr").log("onRevenueCatPurchased")
+                  
+                          Purchases.sharedInstance.getCustomerInfo(
+                              CacheFetchPolicy.NOT_STALE_CACHED_OR_CURRENT,
+                              object : ReceiveCustomerInfoCallback {
+                                  override fun onError(error: PurchasesError) {
+                                      ("on Received on Error : ${error.message}").log("onRevenueCatPurchased")
+                                  }
+                  
+                                  override fun onReceived(customerInfo: CustomerInfo) {
+                                      ("on Received Subscription: ${customerInfo.activeSubscriptions} || inApp : ${customerInfo.entitlements.active}").log(
+                                          "onRevenueCatPurchased"
+                                      )
+                  
+                                      if (customerInfo.activeSubscriptions.isNotEmpty()) {
+                                          isSubscribe = true
+                                          isSubscribedForAllGlobal(context, true)
+                                      }/* else if (customerInfo.entitlements.active.isNotEmpty()) {
+                                          isSubscribe = false
+                  //                        isSubscribedForAllGlobal(context, true)
+                                      } else {
+                                          isSubscribe = true
+                                          isSubscribedForAllGlobal(context, false)
+                                      }*/
+                  
+                                      if (App.getBoolean("isForRevalueFirstTime") == false) {
+                                          App.putBoolean("isForRevalueFirstTime", true)
+                  //                    if (!context.isDestroyed) {
+                                          ("Life Time Success: ---  ").log(
+                                              "onRevenueCatPurchased"
+                                          )
+                                          if (!context.isDestroyed && isSubscribe) {
+                                              productPurchaseListener.onRevenueCatPurchased(customerInfo)
+                                              openNextScreen.invoke()
+                                          }
+                  //                    }
+                                      }
+                                  }
+                              })
+                  
+                          Purchases.sharedInstance.syncPurchases(object : SyncPurchasesCallback {
+                              override fun onError(error: PurchasesError) {
+                                  ("is syncPurchases syncPurchases Time Plan Error: --- ${error.message}").log(
+                                      "onRevenueCatPurchased"
+                                  )
+                  
+                                  if (!isSubscribe)
+                                      isSubscribedForAllGlobal(context, false)
+                  
+                                  if (App.getBoolean("isForRevalueFirstTime") == false) {
+                                      App.putBoolean("isForRevalueFirstTime", true)
+                                      if (!context.isDestroyed) {
+                                          openNextScreen.invoke()
+                                      }
+                                  }
+                              }
+                  
+                              override fun onSuccess(customerInfo: CustomerInfo) {
+                                  ("syncPurchases onSuccess : ${customerInfo.entitlements.active} \n Active Sub: ${customerInfo.activeSubscriptions.toGson()} ").log(
+                                      "onRevenueCatPurchased"
+                                  )
+                                  if (customerInfo.activeSubscriptions.isNotEmpty()) {
+                                      isSubscribedForAllGlobal(context, true)
+                                  } else if (customerInfo.entitlements.active.isNotEmpty()) {
+                                      isSubscribedForAllGlobal(context, true)
+                                  } else {
+                                      isSubscribedForAllGlobal(context, false)
+                                  }
+                  
+                                  if (App.getBoolean("isForRevalueFirstTime") == false) {
+                                      App.putBoolean("isForRevalueFirstTime", true)
+                  //                    if (!context.isDestroyed) {
+                                      ("Life Time Success: ---  ").log(
+                                          "onRevenueCatPurchased"
+                                      )
+                                      productPurchaseListener.onRevenueCatPurchased(customerInfo)
+                                      if (!context.isDestroyed)
+                                          openNextScreen.invoke()
+                  //                    }
+                                  }
+                              }
+                          })
+                  
+                          Purchases.sharedInstance.getOfferings(object : ReceiveOfferingsCallback {
+                              override fun onError(error: PurchasesError) {
+                                  "${error}".log("Purchase List error-->")
+                              }
+                  
+                              override fun onReceived(offerings: com.revenuecat.purchases.Offerings) {
+                                  (offerings.all.toGson()).log("REVANUEPLAN")
+                  
+                                  if (BuildConfig.DEBUG) saveJsonToFile(Gson().toJson(offerings))
+                  
+                                  offerings.all.forEach { (s, offering) ->
+                                      val offers = MyOffer(s, offering.availablePackages)
+                                      allAvailablePackages.add(offers)
+                                  }
+                  
+                                  allAvailablePackages.forEach { myoffer ->
+                                      myoffer.packages.forEach {
+                                          val freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
+                                              it.freePhase?.billingPeriod
+                                          }
+                                          revenueCatDataList.add(
+                                              RevenueCatData(
+                                                  it.product.id,
+                                                  myoffer.key,
+                                                  it.packageType,
+                                                  it.product.price.formatted,
+                                                  it.product.price.amountMicros,
+                                                  it.product.period.toString(),
+                                                  it
+                                              )
+                                          )
+                                      }
+                                  }
+                  
+                                  allAvailablePackages.find { it.key == abTestPackage }?.let {
+                                      currentUserPackage = it
+                                  }
+                                  liveMyPlan.postValue(currentUserPackage.key)
+                                  currentUserPackage?.packages?.forEach {
+                                      val freeTrial = it.product.subscriptionOptions?.freeTrial?.let { it ->
+                                          it.freePhase?.billingPeriod
+                                      }
+                                      revenueCatDataList.add(
+                                          RevenueCatData(
+                                              it.product.id,
+                                              currentUserPackage.key,
+                                              it.packageType,
+                                              it.product.price.formatted,
+                                              it.product.price.amountMicros,
+                                              it.product.period.toString(),
+                                              it
+                                          )
+                                      )
+                                  }
+                  
+                                  val myProducts = ArrayList<BillingProduct>()
+                  
+                                  revenueCatDataList.forEach {
+                                      val billingProduct = BillingProduct()
+                                      billingProduct.id = it.id
+                                      billingProduct.title = it.packageName
+                  
+                                      it.product.product.let { q ->
+                                          billingProduct.productType =
+                                              if (q.type == ProductType.INAPP) INAPP else SUBS
+                                      }
+                  
+                                      when (it.packageType) {
+                                          PackageType.MONTHLY -> {
+                                              billingProduct.packageType = MyPackageType.MONTH
+                                          }
+                  
+                                          PackageType.ANNUAL -> {
+                                              billingProduct.packageType = MyPackageType.ANNUAL
+                                          }
+                  
+                                          PackageType.WEEKLY -> {
+                                              billingProduct.packageType = MyPackageType.WEEK
+                                          }
+                  
+                                          PackageType.LIFETIME -> {
+                                              billingProduct.packageType = MyPackageType.LIFETIME
+                                          }
+                  
+                                          else -> {
+                                              billingProduct.packageType = MyPackageType.SIX_MONTH
+                                          }
+                                      }
+                                      billingProduct.price = it.price
+                                      billingProduct.period = it.period
+                                      billingProduct.amountmicros = it.amountmicros
+                                      billingProduct.freeTrials = it.freeTrial
+                  
+                                      myProducts.add(billingProduct)
+                                  }
+                                  SubscriptionSetter.livePackageProduct.postValue(myProducts)
+                                  liverevenuecatedatalist.postValue(revenueCatDataList)
+                              }
+                          })
+                  
+                          if (App.getBoolean("isForRevalueFirstTime") == true && !context.isDestroyed) openNextScreen.invoke()
+                      }
+                  
+                      fun RestorePurchase(activity: Activity, onNext: () -> Unit) {
+                  
+                          if (!isOnline(activity)) {
+                              Toast.makeText(
+                                  activity, activity.getString(R.string.please_connect_internet), Toast.LENGTH_SHORT
+                              ).show()
+                              return
+                          }
                   
                           if (Purchases.isConfigured && activity.window != null && activity.windowManager != null) {
                               Purchases.sharedInstance.restorePurchases(object : ReceiveCustomerInfoCallback {
@@ -443,103 +1248,97 @@
                               )
                           }
                       }
-                      
-                            fun purchaseMonth(context: Activity, onSuccess: (StoreTransaction, CustomerInfo) -> Unit) {
-                        //        var purchaseProduct = allAvailablePackages.find { it.key == key }
-                                var product = revenueCatDataList.find { it.packageType == PackageType.MONTHLY }
-                                if (product != null) {
-                        //            var product = purchaseProduct.packages.find { it.packageType == PackageType.MONTHLY }
-                                    product?.let {
-                                        Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(
-                                            context,
-                                            product.product
-                                        ).build(),
-                                            { error: PurchasesError, userCancelled: Boolean ->
-                                                Log.e("TAG", "initview:MonthPackage $error")
-                                            },
-                                            { purchase, customerInfo ->
-                                                purchase?.let { onSuccess.invoke(it, customerInfo) }
-                                            })
-                                    }
-                                } else {
-                                    Log.e("TAG", "initview:purchaseProduct null!")
-                        
-                                }
-                            }
-                        
-                            fun purchaseOnTime(
-                                context: Activity,
-                                productkey: PackageType,
-                                onSuccess: (StoreTransaction, CustomerInfo) -> Unit
-                            ) {
-                        //        var purchaseProduct = allAvailablePackages.find { it.key == key }
-                                val product = revenueCatDataList.find { it.packageType == productkey }
-                                if (product != null) {
-                                    product?.let {
-                                        Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(
-                                            context,
-                                            product.product
-                                        ).build(),
-                                            { error: PurchasesError, userCancelled: Boolean ->
-                                                Log.e("TAG", "initview:MonthPackage $error")
-                                            },
-                                            { purchase, customerInfo ->
-                                                purchase?.let { onSuccess.invoke(it, customerInfo) }
-                                            })
-                                    }
-                                } else {
-                                    Log.e("TAG", "initview:purchaseProduct null!")
-                                }
-                            }
-                        }
-                          
-        @Keep
-        data class BillingProduct(
-            var id: String = "",
-            var title: String = "",
-            var description: String = "",
-            var packageType: MyPackageType? = null,
-            var price: String = "",
-            var amountmicros: Long = 0L,
-            var amountmicrostoPriceInt: Int = 0,
-            var period: String = "",
-            var productType: String = BillingClient.ProductType.SUBS,
-        )
-        
-        @Keep
-        data class BillingINAPPProduct(
-            var id: String = "",
-            var title: String = "",
-            var description: String = "",
-            var packageType: MyPackageType? = null,
-            var price: String = "",
-            var amountmicros: Long = 0L,
-            var amountmicrostoPriceInt: Int = 0,
-            var period: String = "",
-            var productType: String = BillingClient.ProductType.SUBS,
-        )
-        
-        @Keep
-        data class ProductBillingIDS(var id: String, var billingType: String)
+                  
+                      fun purchaseMonth(context: Activity, onSuccess: (StoreTransaction, CustomerInfo) -> Unit) {
+                  //        var purchaseProduct = allAvailablePackages.find { it.key == key }
+                          var product = revenueCatDataList.find { it.packageType == PackageType.MONTHLY }
+                          if (product != null) {
+                  //            var product = purchaseProduct.packages.find { it.packageType == PackageType.MONTHLY }
+                              product?.let {
+                                  Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(
+                                      context, product.product
+                                  ).build(), { error: PurchasesError, userCancelled: Boolean ->
+                                      Log.e("TAG", "initview:MonthPackage $error")
+                                  }, { purchase, customerInfo ->
+                                      purchase?.let { onSuccess.invoke(it, customerInfo) }
+                                  })
+                              }
+                          } else {
+                              Log.e("TAG", "initview:purchaseProduct null!")
+                  
+                          }
+                      }
+                  
+                      fun purchaseOnTime(
+                          context: Activity,
+                          productkey: PackageType,
+                          onSuccess: (StoreTransaction, CustomerInfo) -> Unit
+                      ) {
+                  //        var purchaseProduct = allAvailablePackages.find { it.key == key }
+                          val product = revenueCatDataList.find { it.packageType == productkey }
+                          if (product != null) {
+                              product?.let {
+                                  Purchases.sharedInstance.purchaseWith(PurchaseParams.Builder(
+                                      context, product.product
+                                  ).build(), { error: PurchasesError, userCancelled: Boolean ->
+                                      Log.e("TAG", "initview:MonthPackage $error")
+                                  }, { purchase, customerInfo ->
+                                      purchase?.let { onSuccess.invoke(it, customerInfo) }
+                                  })
+                              }
+                          } else {
+                              Log.e("TAG", "initview:purchaseProduct null!")
+                          }
+                      }
+                  }
+               
+         @Keep
+         data class BillingProduct(
+             var id: String = "",
+             var title: String = "",
+             var description: String = "",
+             var packageType: MyPackageType? = null,
+             var price: String = "",
+             var amountmicros: Long = 0L,
+             var amountmicrostoPriceInt: Int = 0,
+             var period: String = "",
+             var freeTrials: FreeTrils? = null,
+             var productType: String = BillingClient.ProductType.SUBS,
+         )
+         
+         @Keep
+         data class BillingINAPPProduct(
+             var id: String = "",
+             var title: String = "",
+             var description: String = "",
+             var packageType: MyPackageType? = null,
+             var price: String = "",
+             var amountmicros: Long = 0L,
+             var amountmicrostoPriceInt: Int = 0,
+             var period: String = "",
+             var productType: String = BillingClient.ProductType.SUBS,
+         )
+         
+         @Keep
+         data class ProductBillingIDS(var id: String, var billingType: String)
 
-        
-        
-        @Keep
-        data class RevenueCatData(
-            var id : String,
-            var packageName:String,
-            var packageType : PackageType,
-            var price : String,
-            var amountmicros : Long,
-            var period : String,
-            var freeTrial : FreeTrils,
-            var product : Package
-        )
-        
-        @Keep
-        data class FreeTrils(var period : Int? = null, var TimeType : String, var i8 : String)
-        @Keep
-        data class MyOffer(var key : String="", var packages : List<Package> = listOf())
+     
+                  @Keep
+                  data class RevenueCatData(
+                      var id : String,
+                      var packageName:String,
+                      var packageType : PackageType,
+                      var price : String,
+                      var amountmicros : Long,
+                      var period : String,
+                      var product : Package,
+                      var freeTrial : FreeTrils = FreeTrils()
+                  )
+                  
+                  @Keep
+                  data class FreeTrils(var period : Int? = null, var TimeType : String = "", var i8 : String = "")
+                  @Keep
+                  data class MyOffer(var key : String="", var packages : List<Package> = listOf())
 
          ----- SubscriptionSetter.clas
 
