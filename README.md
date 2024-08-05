@@ -1661,172 +1661,204 @@
 
                --- For Plan Subscription ----
                
-               SubscriptionSetter.makeMySubs(
+            SubscriptionSetter.makeMySubs(
                     this@NewForYearSubAct, MyPackageType.WEEK
                 ) { storeTransaction, customerInfo ->
+                    isSubscribeFun(this@NewForYearSubAct, true)
+                    ("onSuccess WEEK").log("onRevenueCatPurchased")
                 }
 
 
-                    purchaseListener.postValue(false)
+                   SubscriptionSetter.makeMyProduct(
+                        this@NewForYearSubAct, MyPackageType.LIFETIME
+                    ) { storeTransaction, customerInfo ->
 
-            purchaseListener.observe(this@NewForYearSubAct) { purchase ->
-                //finish
-                ("Purchasing: $purchase").log()
+                        ("onSuccess LifeTime").log("onRevenueCatPurchased")
 
-                if (purchase) {
-                    setResult(Activity.RESULT_OK)
-                    isSubscribedForAllGlobal(this@NewForYearSubAct, purchase)
-                    onBackPressed()
+                        isSubscribeFun(this@NewForYearSubAct, true)
+
+                    }
+
+                      purchaseListener.postValue(false)
+    
+                purchaseListener.observe(this@NewForYearSubAct) { purchase ->
+                    //finish
+                    ("Purchasing: $purchase").log()
+    
+                    if (purchase) {
+                        setResult(Activity.RESULT_OK)
+                        isSubscribedForAllGlobal(this@NewForYearSubAct, purchase)
+                        onBackPressed()
+                    }
                 }
-            }
 
 
 
             ---- Live All Produt Detail 
 
-                              SubscriptionSetter.liveMyInAppProducts.observe(this@NewForYearSubAct) { billingInAppProduct ->
-                                billingInAppProduct?.let { productsList ->
-                
-                                    if (!NetworkHelper.isOnline(this@NewForYearSubAct)) return@observe
-                
+                                 SubscriptionSetter.livePackageProduct.observe(
+                    this@NewForYearSubAct,
+                    object : Observer<List<BillingProduct>?> {
+                        @SuppressLint("SetTextI18n")
+                        override fun onChanged(billingProducts: List<BillingProduct>?) {
+                            billingProducts?.let { productsList ->
+                                try {
+                                    if (!isOnline(this@NewForYearSubAct)) return
+    
+                                    val annualPlan =
+                                        productsList.find { it.packageType == MyPackageType.ANNUAL }
+                                    val weekPlan =
+                                        productsList.find { it.packageType == MyPackageType.WEEK }
+                                    val sixPlan =
+                                        productsList.find { it.packageType == MyPackageType.SIX_MONTH }
+    
                                     val lifetime =
                                         productsList.find { it.packageType == MyPackageType.LIFETIME && it.productType == BillingClient.ProductType.INAPP }
+    
                                     lifetime?.let {
                                         ("Sucsess INAPP Data: ${it.toGson()}").log("FATZ")
                                         bind.lifetimebtn.visibility = View.VISIBLE
-                                        bind.lifetimepriceid.text = lifetime?.price
-                
-                                        if (!NetworkHelper.isOnline(this@NewForYearSubAct)) {
-                                            bind.lifetimepriceid.text = "₹2,000/-"
+                                        bind.lifetimepriceid.text =
+                                            removeTrailingZeros(lifetime?.price!!)
+    
+                                        if (!isOnline(this@NewForYearSubAct)) {
+                                            bind.lifetimepriceid.text = "₹2,000"
                                         }
-                
-                //                        bind.lifetimetitalid.text = lifetime?.title
-                
-                //                        bind.lifetimetitalid.setEllipsize(TextUtils.TruncateAt.MARQUEE);
-                //                        bind.lifetimetitalid.setSingleLine(true);
-                //                        bind.lifetimetitalid.setMarqueeRepeatLimit(-1); // -1 for infinite loop
-                //                        bind.lifetimetitalid.setSelected(true); // Required for the marquee effect to work
-                
-                //                       bind.tvpurid.text = lifetime?.description
-                //                       bind.tvpurid.text = "Lifetime Purchase"
                                     }
+    
+                                    bind.tvPriceyear.text = removeTrailingZeros(annualPlan?.price!!)
+                                    bind.priserid.text = removeTrailingZeros(weekPlan?.price!!)
+                                    bind.sixmonthjid.text = removeTrailingZeros(sixPlan?.price!!)
+    
+                                    ("Micro Annual: " + annualPlan!!.amountmicros + " | Week: " + weekPlan!!.amountmicrostoPriceInt + " | 6 Month: " + sixPlan!!.amountmicrostoPriceInt).log(
+                                        "FATZ"
+                                    )
+    
+                                    //todo: Revanue Cat Change divided
+                                    val annulemicro = (annualPlan?.amountmicros?.div(1000000))
+                                    val weekmicro = (weekPlan?.amountmicros?.div(1000000))
+                                    val sixmonthmicro = (sixPlan?.amountmicros?.div(1000000))
+    
+                                    bind.weeklytvlongtvid.text =
+                                        "• ${getString(R.string.weeksubtv)} : ${
+                                            removeTrailingZeros(
+                                                weekPlan?.price!!
+                                            )
+                                        }"
+                                    bind.monthlytvlongtvid.text =
+                                        "• ${getString(R.string.sixmonthsubtv)} : ${
+                                            removeTrailingZeros(
+                                                sixPlan?.price!!
+                                            )
+                                        }"
+                                    bind.yearlytvlongtvid.text =
+                                        "• ${getString(R.string.yearsubtv)} : ${
+                                            removeTrailingZeros(
+                                                annualPlan?.price!!
+                                            )
+                                        }"
+    
+                                    if (annulemicro != null) {
+                                        bind.montbottomid.text =
+                                            "₹${annulemicro / 52}/ ${getString(R.string.perweek)}"
+                                    }
+                                    if (sixmonthmicro != null) {
+                                        bind.sixmonthbottom.text =
+                                            "₹${sixmonthmicro / 26}/ ${getString(R.string.perweek)}"
+                                    }
+    
+                                    if (weekmicro != null) {
+                                        val numberFormat: NumberFormat = NumberFormat.getInstance()
+                                        val formattedNumber: String =
+                                            numberFormat.format((weekmicro * 26))
+                                        bind.linabc.text = "₹${formattedNumber}"
+                                        bind.linabcde.text =
+                                            "₹${numberFormat.format((weekmicro?.times(52)))}"
+                                        bind.tvlifetimestrik.text =
+                                            "₹${numberFormat.format((weekmicro?.times(52 * 2)))}"
+                                    }
+    
+                                    if (sixmonthmicro != null) {
+                                        val yearperchantage =
+                                            ((26 * weekmicro!!) - sixmonthmicro).toDouble()
+                                        val sec = (yearperchantage * 100 / (26 * weekmicro)).toDouble()
+    
+                                        ("Six: " + sec).log()
+    
+                                        bind.sixmonthtvbg.text = "${(sec).roundToInt()}${
+                                            getString(
+                                                R.string.off
+                                            )
+                                        }"
+                                    }
+    
+                                    if (annulemicro != null) {
+    
+                                        val yearperchantage =
+                                            (52 * weekmicro!!) - annulemicro.toDouble()
+                                        val sec = yearperchantage * 100 / (52 * weekmicro).toDouble()
+    
+                                        ("Annul: " + sec).log()
+    
+                                        bind.monthtvdid.text = "${(sec).roundToInt()}${
+                                            getString(
+                                                R.string.off
+                                            )
+                                        }"
+                                    }
+    
+                                    if (annulemicro != null) {
+                                        ("Name: " + ((annulemicro * 100) / (annulemicro * 48))).log()
+                                    }
+    
+                                    val isFreeTrial = productsList.any { it.price == "Free" }
+                                    ("isFreeTrial $isFreeTrial").log()
+    
+                                    if (isFreeTrial) {
+                                        App.putBoolean("isFreeTry", true)
+                                        bind.startfreetrybtn.text =
+                                            getSubscribeText(this@NewForYearSubAct, true)
+                                    } else {
+                                        App.putBoolean("isFreeTry", false)
+                                        bind.startfreetrybtn.text =
+                                            getSubscribeText(this@NewForYearSubAct, false)
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
                             }
-
-
-                            -------- Live Package Products Details. 
-                
-                                             SubscriptionSetter.livePackageProduct.observe(
-                                this@NewForYearSubAct,
-                                object : Observer<List<BillingProduct>?> {
-                                    @SuppressLint("SetTextI18n")
-                                    override fun onChanged(billingProducts: List<BillingProduct>?) {
-                                        billingProducts?.let { productsList ->
-                                            try {
-                                                if (!NetworkHelper.isOnline(this@NewForYearSubAct)) return
-                
-                                                val annualPlan =
-                                                    productsList.find { it.packageType == MyPackageType.ANNUAL }
-                                                val weekPlan =
-                                                    productsList.find { it.packageType == MyPackageType.WEEK }
-                                                val sixPlan =
-                                                    productsList.find { it.packageType == MyPackageType.SIX_MONTH }
-                
-                //                            bind.txtPurchaseMonth.text = monthPlan?.title
-                //                            bind.priserid.text = weekPlan?.title
-                //                            binding.thirdidyearly.text = sixPlan?.title
-                
-                                                bind.tvPriceyear.text = annualPlan?.price
-                                                bind.priserid.text = weekPlan?.price
-                                                bind.sixmonthjid.text = sixPlan?.price
-                
-                                                ("Micro Annual: " + annualPlan!!.amountmicros + " | Week: " + weekPlan!!.amountmicrostoPriceInt + " | 6 Month: " + sixPlan!!.amountmicrostoPriceInt).log(
-                                                    "FATZ"
-                                                )
-                
-                                                //todo: Revanue Cat Change divided
-                                                val annulemicro = (annualPlan?.amountmicros?.div(1000000))
-                                                val weekmicro = (weekPlan?.amountmicros?.div(1000000))
-                                                val sixmonthmicro = (sixPlan?.amountmicros?.div(1000000))
-                
-                                                bind.weeklytvlongtvid.text =
-                                                    "• ${getString(R.string.weeksubtv)} : ${weekPlan?.price}"
-                                                bind.monthlytvlongtvid.text =
-                                                    "• ${getString(R.string.sixmonthsubtv)} : ${sixPlan?.price}"
-                                                bind.yearlytvlongtvid.text =
-                                                    "• ${getString(R.string.yearsubtv)} : ${annualPlan?.price}"
-                
-                                                if (annulemicro != null) {
-                                                    bind.montbottomid.text =
-                                                        "${getString(R.string.permonth)} \n ₹${annulemicro / 12}/-"
-                                                }
-                                                if (sixmonthmicro != null) {
-                                                    bind.sixmonthbottom.text =
-                                                        "${getString(R.string.perweek)} \n ₹${sixmonthmicro / 24}/-"
-                                                }
-                
-                                                if (weekmicro != null) {
-                                                    bind.linabc.text = "₹${(weekmicro * 24)}/-"
-                                                }
-                                                if (annulemicro != null) {
-                                                    bind.linabcde.text = "₹${(annulemicro * 48)}/-"
-                                                }
-                
-                                                if (sixmonthmicro != null) {
-                                                    val yearperchantage =
-                                                        ((24 * weekmicro!!) - sixmonthmicro).toDouble()
-                                                    val sec = (yearperchantage * 100 / (24 * weekmicro)).toDouble()
-                
-                                                    ("Six: " + sec).log()
-                
-                                                    bind.sixmonthtvbg.text = "${(sec).roundToInt()}${
-                                                        getString(
-                                                            R.string.off
-                                                        )
-                                                    }"
-                                                }
-                
-                                                if (annulemicro != null) {
-                
-                                                    val yearperchantage =
-                                                        (52 * weekmicro!!) - annulemicro.toDouble()
-                                                    val sec = yearperchantage * 100 / (52 * weekmicro).toDouble()
-                
-                                                    ("Annul: " + sec).log()
-                
-                                                    bind.monthtvdid.text = "${(sec).roundToInt()}${
-                                                        getString(
-                                                            R.string.off
-                                                        )
-                                                    }"
-                                                }
-                
-                                                if (annulemicro != null) {
-                                                    ("Name: " + ((annulemicro * 100) / (annulemicro * 48))).log()
-                                                }
-                
-                                                val isFreeTrial = productsList.any { it.price == "Free" }
-                                                ("isFreeTrial $isFreeTrial").log()
-                
-                                                if (isFreeTrial) {
-                                                    App.putBoolean("isFreeTry", true)
-                                                    bind.startfreetrybtn.text =
-                                                        getSubscribeText(this@NewForYearSubAct, true)
-                                                } else {
-                                                    App.putBoolean("isFreeTry", false)
-                                                    bind.startfreetrybtn.text =
-                                                        getSubscribeText(this@NewForYearSubAct, false)
-                                                }
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        }
-                                    }
-                                })
-
-
-
-
+                        }
+                    })
+        
+        
+                fun removeTrailingZeros(text: String): String {
+            return if (text.endsWith(".00")) {
+                text.substring(0, text.length - 3)
+            } else {
+                text
+            }
+        }
+        
+          @SuppressLint("StringFormatMatches")
+            private fun getSubTrial(trial: String): String? {
+                //Parse I8
+                return try {
+                    val size = trial.length
+                    val period = trial.substring(1, size - 1)
+                    val str = trial.substring(size - 1, size)
+                    Log.d("TAG", "getSubTrial <------------------>: ${size} $period - $str")
+                    when (str) {
+                        "D" -> resources.getString(R.string.days, period)
+                        "M" -> resources.getString(R.string.months, period)
+                        "Y" -> resources.getString(R.string.months, (period.toInt() * 12))
+                        "W" -> resources.getString(R.string._7_day)
+                        else -> resources.getString(R.string.months, period)
+                    }
+                } catch (e: Exception) {
+                    resources.getString(R.string._12_months)
+                }
+            }
+            
 // Connection Live Data
         
         class ConnectionLiveData(val context: Context) : LiveData<Boolean>() {
@@ -2014,20 +2046,11 @@
             }
 
     
-       private fun isSubscribeFun(isSubscribe: Boolean) {
-            Log.d("FATZ", "is Subscription: $isSubscribe")
-            StaticParam.purchaseListener.postValue(isSubscribe)
-    
-            isSubscribedForAllGlobal(this, isSubscribe)
-    
-    //        MySharedPreferences(this).isSubscribe = if (BuildConfig.DEBUG) true else isSubscribe
-    //        isSubScribe = if (BuildConfig.DEBUG) true else isSubscribe
-    //        isSubScribeFromPicker = if (BuildConfig.DEBUG) true else isSubscribe
-    
-            //        MySharedPreferences(this).isSubscribe = false
-    //        isSubScribe = false
-    //        isSubScribeFromPicker = false
-        }
+     private fun isSubscribeFun(activity: Activity, isSubscribe: Boolean) {
+        StaticParam.purchaseListener.postValue(true)
+        isSubscribedForAllGlobal(activity, true)
+    }
+
 
 
             --------- BillingHelper Class -------
