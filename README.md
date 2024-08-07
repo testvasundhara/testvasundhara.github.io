@@ -1,6 +1,11 @@
 # testvasundhara.github.io
 
 
+// Make a eassy way to make a bundle
+
+    org.gradle.jvmargs=-Xmx4g -XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+
+
 // Ffmpeg Demo & Image to background ML Kit
 
 
