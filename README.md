@@ -1259,28 +1259,23 @@
                                           "onRevenueCatPurchased"
                                       )
                   
-                                      if (customerInfo.activeSubscriptions.isNotEmpty()) {
-                                          isSubscribe = true
-                                          isSubscribedForAllGlobal(context, true)
-                                      }/* else if (customerInfo.entitlements.active.isNotEmpty()) {
-                                          isSubscribe = false
-                  //                        isSubscribedForAllGlobal(context, true)
-                                      } else {
-                                          isSubscribe = true
-                                          isSubscribedForAllGlobal(context, false)
-                                      }*/
-                  
-                                      if (App.getBoolean("isForRevalueFirstTime") == false) {
-                                          App.putBoolean("isForRevalueFirstTime", true)
-                  //                    if (!context.isDestroyed) {
-                                          ("Life Time Success: ---  ").log(
-                                              "onRevenueCatPurchased"
-                                          )
-                                          if (!context.isDestroyed && isSubscribe) {
-                                              productPurchaseListener.onRevenueCatPurchased(customerInfo)
-                                              openNextScreen.invoke()
-                                          }
-                  //                    }
+                                 if (customerInfo.activeSubscriptions.isNotEmpty()) {
+                        isSubscribe = true
+                        isSubscribedForAllGlobal(context, true)
+                    }
+
+                    if (App.getBoolean("isForRevalueFirstTime") == false) {
+                        App.putBoolean("isForRevalueFirstTime", true)
+                        ("Life Time Success: ---  $isSubscribe").log(
+                            "onRevenueCatPurchased"
+                        )
+                        if (!context.isDestroyed && isSubscribe) {
+                            productPurchaseListener.onRevenueCatPurchased(customerInfo)
+                            openNextScreen.invoke()
+                        } else {
+                            App.putBoolean("isForRevalueFirstTime", false)
+                        }
+                    }
                                       }
                                   }
                               })
@@ -1291,15 +1286,14 @@
                                       "onRevenueCatPurchased"
                                   )
                   
-                                  if (!isSubscribe)
-                                      isSubscribedForAllGlobal(context, false)
-                  
-                                  if (App.getBoolean("isForRevalueFirstTime") == false) {
-                                      App.putBoolean("isForRevalueFirstTime", true)
-                                      if (!context.isDestroyed) {
-                                          openNextScreen.invoke()
-                                      }
-                                  }
+                                  if (!isSubscribe) isSubscribedForAllGlobal(context, false)
+
+                if (App.getBoolean("isForRevalueFirstTime") == false) {
+                    App.putBoolean("isForRevalueFirstTime", true)
+                    if (!context.isDestroyed) {
+                        openNextScreen.invoke()
+                    }
+                }
                               }
                   
                               override fun onSuccess(customerInfo: CustomerInfo) {
